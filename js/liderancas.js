@@ -12,6 +12,7 @@
   const CANDIDATOS_2026 = 'data/2026-1/candidatos.csv';
   const FOTOS_2026 = 'data/2026-1/fotos/';
   const CARGOS_2026 = ['Presidente', 'Governador', 'Senador', 'Deputado Federal', 'Deputado Estadual'];
+  const CARGOS_APOIO = ['Deputado Federal', 'Deputado Estadual']; // cargos em que a liderança declara apoio em 2026
   const CHAVE_CARGO = { Presidente: 'presidente', Governador: 'governador', Senador: 'senador', 'Deputado Federal': 'federal', 'Deputado Estadual': 'estadual' };
   const CARGO_DA_CHAVE = Object.fromEntries(Object.entries(CHAVE_CARGO).map(([c, k]) => [k, c]));
 
@@ -288,7 +289,7 @@
   /** Expectativa de votos da liderança em 2026: o campo próprio ou, se vazio, a maior estimativa entre os seus candidatos. */
   function expectativa2026(l) {
     if (l.votos2026 != null && l.votos2026 !== '') return Number(l.votos2026) || 0;
-    return Math.max(0, ...CARGOS_2026.map((c) => { const a = apoio(l, CHAVE_CARGO[c]); return a ? a.estimativa : 0; }));
+    return Math.max(0, ...CARGOS_APOIO.map((c) => { const a = apoio(l, CHAVE_CARGO[c]); return a ? a.estimativa : 0; }));
   }
 
   function grupo(candId, cd) {
@@ -307,7 +308,7 @@
     const mapa = new Map();
     for (const l of dados.liderancas) {
       if (cd && l.cd_mun !== cd) continue;
-      for (const cargo of CARGOS_2026) {
+      for (const cargo of CARGOS_APOIO) {
         const a = apoio(l, CHAVE_CARGO[cargo]);
         if (!a) continue;
         if (!mapa.has(a.c.id)) mapa.set(a.c.id, { c: a.c, n: 0, total: 0, municipios: new Set() });
@@ -381,7 +382,7 @@
 
   function renderDetalhes(l) {
     const linha = (rotulo, valor) => '<div class="la-det"><span class="rotulo">' + esc(rotulo) + '</span><span class="valor">' + (valor || '<span class="dica">—</span>') + '</span></div>';
-    const apoios26 = CARGOS_2026.map((cargo) => {
+    const apoios26 = CARGOS_APOIO.map((cargo) => {
       const a = apoio(l, CHAVE_CARGO[cargo]);
       return '<div class="la-det"><span class="rotulo">' + esc(cargo) + '</span><span class="valor">' + (a
         ? '<span class="cand-linha">' + avatar(a.c.nome, a.c.foto, 28) + '<span>' + esc(a.c.nome) + (a.c.partido ? ' (' + esc(a.c.partido) + ')' : '') + (a.c.numero ? ' · nº ' + esc(a.c.numero) : '') +
@@ -436,7 +437,7 @@
       '<label class="campo"><span>2022 · trabalhou para (Dep. Federal)</span><input name="apoio2022_federal" list="la-fed22" value="' + v('apoio2022_federal') + '" autocomplete="off"></label>' + datalist('la-fed22', ref.federais2022) +
       (ehPref ? '' : '<label class="campo"><span>2024 · apoiou para Prefeito</span><input name="apoio2024_prefeito" list="la-pref24" value="' + v('apoio2024_prefeito') + '" autocomplete="off"></label>' + datalist('la-pref24', ref.prefeitos.map((p) => p.nome + ' (' + p.partido + ')'))) +
       (l && l.origem === 'vereador2024' ? '' : '<label class="campo"><span>2024 · apoiou para Vereador</span><input name="apoio2024_vereador" list="la-ver24" value="' + v('apoio2024_vereador') + '" autocomplete="off"></label>' + datalist('la-ver24', ref.vereadores.map((p) => p.nome + ' (' + p.partido + ')'))) +
-      '<div class="la-bloco-2026"><div class="detalhe-sub">Trabalhará em 2026 para</div>' + CARGOS_2026.map(linha2026).join('') +
+      '<div class="la-bloco-2026"><div class="detalhe-sub">Trabalhará em 2026 para</div>' + CARGOS_APOIO.map(linha2026).join('') +
         '<div class="dica">Digite e escolha na lista (cadastro do TSE de 2026). Candidato fora da lista: <button type="button" class="btn btn-mini" data-la="novo-cand-form">cadastrar manualmente</button></div>' +
         renderNovoCandidato() + '</div>' +
       '<label class="campo la-obs"><span>Observações</span><textarea name="obs" rows="2">' + v('obs') + '</textarea></label>' +
@@ -449,7 +450,7 @@
     return '<form data-la="form-cand" class="la-novo-cand">' +
       '<strong>Novo candidato 2026 (manual)</strong>' +
       '<input name="nome" required placeholder="Nome (ex.: Yury do Paredão)">' +
-      '<select name="cargo">' + CARGOS_2026.map((c) => '<option value="' + c + '"' + (c === ui.novoCandidato ? ' selected' : '') + '>' + c + '</option>').join('') + '</select>' +
+      '<select name="cargo">' + CARGOS_APOIO.map((c) => '<option value="' + c + '"' + (c === ui.novoCandidato ? ' selected' : '') + '>' + c + '</option>').join('') + '</select>' +
       '<input name="partido" placeholder="Partido">' +
       '<button type="submit" class="btn btn-primario">Adicionar</button><button type="button" class="btn" data-la="cancelar-cand">Cancelar</button></form>';
   }
@@ -458,7 +459,6 @@
   const ABAS_EST = [
     { id: 'federal', rotulo: 'Deputado Federal', cargos: ['Deputado Federal'] },
     { id: 'estadual', rotulo: 'Deputado Estadual', cargos: ['Deputado Estadual'] },
-    { id: 'majoritarios', rotulo: 'Presidente, Governador e Senador', cargos: ['Presidente', 'Governador', 'Senador'] },
   ];
 
   function renderEstimativa(cd, lista) {
@@ -592,7 +592,7 @@
     reg.obs = String(f.get('obs') || '').trim();
     reg.apoio2026 = reg.apoio2026 || {};
     const naoEncontrados = [];
-    for (const cargo of CARGOS_2026) {
+    for (const cargo of CARGOS_APOIO) {
       const chave = CHAVE_CARGO[cargo];
       const texto = String(f.get('cand_' + chave) || '').trim();
       const est = parseInt(f.get('est_' + chave), 10);
@@ -614,7 +614,7 @@
     const f = new FormData(form);
     const nome = String(f.get('nome') || '').trim();
     if (!nome) return null;
-    const c = { id: novoId('c'), nome, cargo: String(f.get('cargo') || CARGOS_2026[0]), partido: String(f.get('partido') || '').trim(), criadoEm: agora() };
+    const c = { id: novoId('c'), nome, cargo: String(f.get('cargo') || CARGOS_APOIO[0]), partido: String(f.get('partido') || '').trim(), criadoEm: agora() };
     dados.candidatos2026.push(c);
     salvar();
     return c;
@@ -645,7 +645,7 @@
     else if (acao === 'exportar') exportar();
     else if (acao === 'cargo26') { ui.cargo26 = alvo.dataset.valor; render(); }
     else if (acao === 'fechar-aviso') { ui.aviso = ''; render(); }
-    else if (acao === 'novo-cand-grupo' || acao === 'novo-cand-form') { ui.novoCandidato = CARGOS_2026[4]; render(); const i = ctx.el.querySelector('.la-novo-cand input[name="nome"]'); if (i) i.focus(); }
+    else if (acao === 'novo-cand-grupo' || acao === 'novo-cand-form') { ui.novoCandidato = CARGOS_APOIO[1]; render(); const i = ctx.el.querySelector('.la-novo-cand input[name="nome"]'); if (i) i.focus(); }
     else if (acao === 'aba-est') { ui.abaEst = alvo.dataset.valor; ui.novoCandidato = false; render(); }
     else if (acao === 'detalhar') { ui.candidato = ui.candidato === alvo.dataset.id ? '' : alvo.dataset.id; render(); }
     else if (acao === 'ver-grupo') { ui.candidato = alvo.dataset.id; if (ctx.irPara) ctx.irPara('estimativa'); else render(); }
