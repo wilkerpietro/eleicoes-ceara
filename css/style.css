@@ -458,3 +458,10 @@ body.la-modal-aberto { overflow: hidden; }
   body.menu-aberto .lateral { transform: none; visibility: visible; box-shadow: 0 0 40px rgba(17, 24, 39, 0.35); }
   body.menu-aberto .menu-fundo { display: block; }
 }
+
+/* ---------- rodapé da tabela do ranking: totais discretos no lugar dos cartões ---------- */
+.rodape-tabela { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 10px 2px 0; font-size: 0.8rem; color: var(--texto-fraca); }
+.rodape-tabela b { font-weight: 600; color: var(--texto-suave); font-variant-numeric: tabular-nums; }
+.rodape-tabela small { font-size: 0.75rem; }
+.rodape-tabela .link { border: 0; background: transparent; padding: 0; font: inherit; color: var(--primaria); }
+.rodape-tabela .link:hover { text-decoration: underline; }

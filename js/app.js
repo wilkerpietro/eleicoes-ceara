@@ -54,6 +54,7 @@
     thead: $('#tabela thead'),
     tbody: $('#tabela tbody'),
     tfoot: $('#tabela tfoot'),
+    rodapeTabela: $('#rodape-tabela'),
     tituloMapa: $('#titulo-mapa'),
     dicaMapa: $('#dica-mapa'),
     mapa: $('#mapa'),
@@ -682,6 +683,8 @@
     const d = distribuicaoCandidato(estado.por);
     const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : emMun();
     renderResumoCandidato(cand, d, rankingCandidatos(), escopo);
+    el.resumo.hidden = false;
+    el.rodapeTabela.hidden = true;
 
     const nomePor = NOME_POR_CAB[estado.por];
     el.titulo.textContent = cand.nome + ' — votos por ' + nomePor.toLowerCase() + ' ' + escopo;
@@ -720,7 +723,9 @@
     const r = rankingCandidatos();
     const t = r.totais;
     const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : emMun();
-    renderResumoRanking(r, escopo);
+    // na tela de tabelas o ranking não tem cartões: os totais viram uma linha discreta no rodapé da tabela
+    el.resumo.innerHTML = '';
+    el.resumo.hidden = true;
 
     const cores = coresPartidos();
 
@@ -745,6 +750,21 @@
     el.tbody.innerHTML = html || '<tr><td colspan="6" class="vazio">Nenhum candidato encontrado para "' + esc(estado.busca) + '".</td></tr>';
     el.tfoot.innerHTML = '<tr><td colspan="3">Válidos ' + esc(escopo) + '</td><td class="num">' + fmtInt(t.validos) + '</td>' +
       '<td class="num">100,0%</td><td></td></tr>';
+
+    const semAptos = !db.temAptos;
+    const item = (rotulo, valor) => '<span class="rodape-item">' + rotulo + ' <b>' + valor + '</b></span>';
+    el.rodapeTabela.innerHTML = [
+      item('Eleitores aptos', semAptos ? 'não disponível nesta base' : fmtInt(r.aptos)),
+      item('Comparecimento', fmtInt(t.comparecimento) + (semAptos ? '' : ' <small>(' + fmtPct(pct(t.comparecimento, r.aptos)) + ')</small>')),
+      semAptos ? '' : item('Abstenção', fmtPct(pct(r.aptos - t.comparecimento, r.aptos))),
+      item('Válidos', fmtInt(t.validos) + ' <small>(nominais ' + fmtInt(t.nominal) + ' · legenda ' + fmtInt(t.legenda) + ')</small>'),
+      item('Brancos', fmtInt(t.branco)),
+      item('Nulos', fmtInt(t.nulo) + ' <small>(brancos e nulos: ' + fmtPct(pct(t.branco + t.nulo, t.comparecimento)) + ' do comparecimento)</small>'),
+      item('Seções', fmtInt(r.nSecoes)),
+      db.cfg.data ? item('Votação em', db.cfg.data.split('-').reverse().join('/')) : '',
+      estado.bairro ? '<button type="button" class="link" data-acao="bairro" data-valor="">Ver todo o município</button>' : '',
+    ].filter(Boolean).join('');
+    el.rodapeTabela.hidden = false;
   }
 
   // ---------- tela de mapa ----------
@@ -766,6 +786,7 @@
     const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : emMun();
 
     // cartões de resumo iguais aos da tela de tabelas
+    el.resumo.hidden = false;
     if (cand) renderResumoCandidato(cand, distribuicaoCandidato('bairro'), rankingCandidatos(), escopo);
     else renderResumoRanking(rankingCandidatos(), escopo);
 
