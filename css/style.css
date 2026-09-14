@@ -350,9 +350,12 @@ td .ponto-cor { display: inline-block; width: 10px; height: 10px; border-radius:
 }
 .marcador-barras:hover .mini-barras .rotulo-b { display: block; }
 .marcador-barras:hover .mini-barras .pct { text-shadow: none; }
-.mapa { --escala: 0.58; }
+.mapa { --escala: 1; }
 .mini-barras { transform: scale(var(--escala)); }
 /* a transição de transform impede a escala via variável CSS no Chrome; mantém só as demais */
 .mini-barras { transition-property: background-color, box-shadow, border-color; }
 .ligacao-bairro { stroke: #6b7280; stroke-width: 1.2; stroke-dasharray: 3 3; opacity: 0.8; }
 .ponto-bairro { fill: #fff; stroke: #374151; stroke-width: 1.5; }
+
+.mapa { height: 680px; }
+@media (max-width: 1100px) { .mapa { height: 560px; } }

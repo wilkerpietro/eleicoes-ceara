@@ -796,8 +796,8 @@
 
   /** Garante que nenhum quadro encoste em outro no zoom atual: reduz um pouco a escala e, se ainda
    *  houver sobreposição, afasta os quadros em pixels, ligando cada um ao ponto real do bairro por uma linha. */
-  const ESCALA_MAX = 0.58;
-  const ESCALA_MIN = 0.42;
+  const ESCALA_MAX = 1;
+  const ESCALA_MIN = 1; // tamanho original; a sobreposição é resolvida só pelo afastamento
   const FOLGA = 8; // px de respiro entre quadros
   function posicionarMarcadores() {
     if (!mapa.obj || !mapa.dim) return;
@@ -849,6 +849,15 @@
     }
 
     // 3) aplica as posições e desenha a ligação até o ponto real quando o quadro foi deslocado
+    if (mapa.centrar) {
+      // na primeira exibição, centraliza o conjunto de quadros (já afastados) no mapa
+      mapa.centrar = false;
+      const xs = itens.map((it) => it.x);
+      const ys = itens.map((it) => it.y);
+      const centro = L.point((Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2);
+      mapa.obj.panTo(mapa.obj.layerPointToLatLng(centro), { animate: false });
+      // após o pan, as coordenadas de camada continuam válidas (o pan não muda o zoom)
+    }
     for (const it of itens) {
       const destino = mapa.obj.layerPointToLatLng(L.point(it.x, it.y));
       it.m.setLatLng(destino);
@@ -927,8 +936,9 @@
     setTimeout(() => {
       mapa.obj.invalidateSize();
       if (!mapa.ajustado && pontos.length) {
-        mapa.obj.fitBounds(L.latLngBounds(pontos), { padding: [30, 30] });
+        mapa.obj.fitBounds(L.latLngBounds(pontos), { padding: [70, 70] });
         mapa.ajustado = true;
+        mapa.centrar = true;
       }
       posicionarMarcadores();
     }, 0);
