@@ -379,3 +379,6 @@ td .ponto-cor { display: inline-block; width: 10px; height: 10px; border-radius:
 .la-bloco-2026 .la-linha input[list] { flex: 2; min-width: 240px; }
 .la-cand-topo { display: flex; align-items: center; }
 .la-cand-topo .avatar { font-size: 1rem; }
+.la-dups { border-color: #f3d9a4; }
+.la-dup-opcao { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; }
+.la-dup-opcao + .la-dup-opcao { border-top: 1px dashed var(--borda); }

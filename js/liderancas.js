@@ -102,6 +102,41 @@
   const candidato2026 = (id) => candidatos2026().find((c) => c.id === id) || null;
   const rotuloCand = (c) => c.nome + (c.partido ? ' (' + c.partido + ')' : '') + (c.numero ? ' · ' + c.numero : '');
 
+  /** Candidatos manuais que parecem repetir alguém do cadastro do TSE (mesmo nome, ignorando acentos e caixa). */
+  function duplicados() {
+    const tse = tse2026 || [];
+    const chaveNome = (s) => normalizar(s).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+    return dados.candidatos2026.map((m) => {
+      const n = chaveNome(m.nome);
+      if (!n) return null;
+      const iguais = tse.filter((c) => chaveNome(c.nome) === n || chaveNome(c.nomeCompleto) === n);
+      const parecidos = iguais.length ? [] : tse.filter((c) => { const cn = chaveNome(c.nome); return n.length >= 6 && (cn.includes(n) || n.includes(cn)); });
+      const lista = iguais.length ? iguais : parecidos;
+      return lista.length ? { manual: Object.assign({ origem: 'manual' }, m), tse: lista, exato: iguais.length > 0 } : null;
+    }).filter(Boolean);
+  }
+
+  /** Substitui um candidato manual por um do TSE: move os apoios das lideranças e apaga o manual. */
+  function mesclar(idManual, idTse) {
+    const m = dados.candidatos2026.find((c) => c.id === idManual);
+    const t = candidato2026(idTse);
+    if (!m || !t) return;
+    const chaveDe = CHAVE_CARGO[m.cargo];
+    const chavePara = CHAVE_CARGO[t.cargo];
+    let movidos = 0;
+    for (const l of dados.liderancas) {
+      const a = l.apoio2026 && l.apoio2026[chaveDe];
+      if (!a || a.candidato_id !== idManual) continue;
+      l.apoio2026[chavePara] = { candidato_id: idTse, estimativa: a.estimativa || 0 };
+      if (chaveDe !== chavePara) l.apoio2026[chaveDe] = null;
+      movidos++;
+    }
+    dados.candidatos2026 = dados.candidatos2026.filter((c) => c.id !== idManual);
+    if (ui.candidato === idManual) ui.candidato = idTse;
+    salvar();
+    return movidos;
+  }
+
   /** Resolve o texto digitado num campo com datalist para um candidato do cargo. */
   function resolverCandidato(texto, cargo) {
     const t = normalizar(String(texto || '').trim());
@@ -360,7 +395,28 @@
       .sort((a, b) => CARGOS_2026.indexOf(a.cargo) - CARGOS_2026.indexOf(b.cargo) || (parseInt(a.numero, 10) || 0) - (parseInt(b.numero, 10) || 0) || a.nome.localeCompare(b.nome, 'pt-BR'));
     const contagem = (cargo) => todos.filter((c) => c.cargo === cargo).length;
     const grupos = (id) => { const g = grupo(id, null); return g.itens.length ? fmtInt(g.total) + ' · ' + g.itens.length + ' lid.' : ''; };
-    return '<section class="painel"><div class="painel-cabecalho"><h2>Candidatos de 2026</h2><span class="dica">Cadastro do TSE (Eleições Gerais 2026, Ceará e Presidência), com foto oficial. Registro de candidaturas em análise: a situação pode mudar até a eleição.</span></div>' +
+    const manuais = dados.candidatos2026;
+    const dups = duplicados();
+    let painelManuais = '';
+    if (manuais.length) {
+      const grupoDe = (id) => grupo(id, null);
+      painelManuais = '<section class="painel la-dups"><div class="painel-cabecalho"><h2>Candidatos cadastrados manualmente · ' + manuais.length + '</h2>' +
+        '<span class="dica">' + (dups.length ? dups.length + ' com possível duplicidade em relação ao cadastro do TSE.' : 'Nenhum coincide com o cadastro do TSE.') + '</span></div>' +
+        '<div class="tabela-scroll"><table class="la-tabela"><thead><tr><th>Manual</th><th>Cargo</th><th>Partido</th><th class="num">Lideranças ligadas</th><th>No cadastro do TSE</th><th></th></tr></thead><tbody>' +
+        manuais.map((m) => {
+          const d = dups.find((x) => x.manual.id === m.id);
+          const g = grupoDe(m.id);
+          return '<tr' + (d ? ' class="selecionado"' : '') + '><td class="texto"><strong>' + esc(m.nome) + '</strong></td><td>' + esc(m.cargo) + '</td><td>' + esc(m.partido || '') + '</td>' +
+            '<td class="num">' + g.itens.length + (g.total ? ' · ' + fmtInt(g.total) + ' votos' : '') + '</td>' +
+            '<td class="texto">' + (d ? d.tse.map((t) => '<div class="la-dup-opcao"><span class="cand-linha">' + avatar(t.nome, t.foto, 28) + '<span>' + esc(t.nome) + ' · ' + esc(t.cargo) + ' · nº ' + esc(t.numero) + ' (' + esc(t.partido) + ')' +
+                (t.cargo !== m.cargo ? ' <span class="selo turno">cargo diferente</span>' : '') + '</span></span>' +
+                '<button type="button" class="btn btn-mini btn-primario" data-la="mesclar" data-manual="' + m.id + '" data-tse="' + t.id + '">Substituir pelo TSE</button></div>').join('') +
+                (d.exato ? '' : '<div class="dica">Nome parecido, não idêntico: confira antes de substituir.</div>')
+              : '<span class="dica">sem correspondência</span>') + '</td>' +
+            '<td class="la-td-acoes"><button type="button" class="btn btn-mini" data-la="excluir-cand" data-id="' + m.id + '" title="Excluir candidato manual">×</button></td></tr>';
+        }).join('') + '</tbody></table></div></section>';
+    }
+    return painelManuais + '<section class="painel"><div class="painel-cabecalho"><h2>Candidatos de 2026</h2><span class="dica">Cadastro do TSE (Eleições Gerais 2026, Ceará e Presidência), com foto oficial. Registro de candidaturas em análise: a situação pode mudar até a eleição.</span></div>' +
       '<div class="la-barra"><div class="segmentado la-abas">' +
         '<button type="button" class="' + (ui.cargo26 === '' ? 'ativo' : '') + '" data-la="cargo26" data-valor="">Todos (' + todos.length + ')</button>' +
         CARGOS_2026.map((c) => '<button type="button" class="' + (ui.cargo26 === c ? 'ativo' : '') + '" data-la="cargo26" data-valor="' + esc(c) + '">' + esc(c) + ' (' + contagem(c) + ')</button>').join('') +
@@ -441,6 +497,25 @@
     else if (acao === 'exportar') exportar();
     else if (acao === 'novo-cand-grupo' || acao === 'novo-cand-form') { ui.novoCandidato = CARGOS_2026[4]; render(); const i = ctx.el.querySelector('.la-novo-cand input[name="nome"]'); if (i) i.focus(); }
     else if (acao === 'ver-grupo') { ui.aba = 'grupos'; ui.candidato = alvo.dataset.id; render(); }
+    else if (acao === 'mesclar') {
+      const m = dados.candidatos2026.find((c) => c.id === alvo.dataset.manual);
+      const t = candidato2026(alvo.dataset.tse);
+      if (!m || !t) return;
+      if (!confirm('Substituir o candidato manual "' + m.nome + '" (' + m.cargo + ') por "' + t.nome + '" (' + t.cargo + ', nº ' + t.numero + ', ' + t.partido + ') do TSE? As lideranças ligadas passam para o candidato do TSE' + (m.cargo !== t.cargo ? ', no cargo ' + t.cargo : '') + '.')) return;
+      const n = mesclar(m.id, t.id);
+      render();
+      alert('Feito: ' + n + ' liderança(s) migrada(s) e o cadastro manual removido.');
+    }
+    else if (acao === 'excluir-cand') {
+      const m = dados.candidatos2026.find((c) => c.id === alvo.dataset.id);
+      if (!m) return;
+      const g = grupo(m.id, null);
+      if (!confirm('Excluir o candidato manual "' + m.nome + '"?' + (g.itens.length ? ' ' + g.itens.length + ' liderança(s) perderão esse apoio.' : ''))) return;
+      for (const l of dados.liderancas) { const k = CHAVE_CARGO[m.cargo]; if (l.apoio2026 && l.apoio2026[k] && l.apoio2026[k].candidato_id === m.id) l.apoio2026[k] = null; }
+      dados.candidatos2026 = dados.candidatos2026.filter((c) => c.id !== m.id);
+      if (ui.candidato === m.id) ui.candidato = '';
+      salvar(); render();
+    }
     else if (acao === 'remover-grupo') {
       const l = porId(alvo.dataset.id);
       if (l && l.apoio2026) { l.apoio2026[alvo.dataset.chave] = null; salvar(); render(); }
