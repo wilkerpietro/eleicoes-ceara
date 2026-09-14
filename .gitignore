@@ -7,3 +7,6 @@ data/raw/*.ZIP
 Thumbs.db
 ~$*
 /*.xlsx
+/*.csv
+/fotocand*/
+/*.pdf

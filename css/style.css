@@ -287,3 +287,8 @@ button.detalhe-item:hover { background: var(--painel-suave); border-color: var(-
 .pizza-lista .num b { color: var(--texto); font-weight: 600; margin-right: 4px; }
 .destaque .ponto-cor { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: middle; border: 1px solid rgba(0, 0, 0, 0.12); }
 .detalhe-item .ponto-cor { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex: none; border: 1px solid rgba(0, 0, 0, 0.12); }
+
+.btn-vermais { width: 100%; margin-top: 8px; font-size: 0.88rem; color: var(--primaria); border-style: dashed; }
+.btn-vermais:hover { background: var(--primaria-suave); }
+td .ponto-cor { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: middle; border: 1px solid rgba(0, 0, 0, 0.12); }
+.pizza-lista { max-height: 200px; overflow-y: auto; padding-right: 4px; }

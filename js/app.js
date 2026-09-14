@@ -11,10 +11,21 @@
   const NOME_POR_CAB = { bairro: 'Bairro', local: 'Local de votação', secao: 'Seção' };
   const TILES_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
   const TILES_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
-  // Paleta categórica (ordem fixa, validada para daltonismo) + cinza para "outros".
+  // Paleta categórica (ordem fixa, validada para daltonismo) usada na pizza de bairros da tela de tabelas.
   const CORES = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4'];
   const COR_OUTROS = '#c9ccd1';
   const COR_SELECAO = '#b45309';
+  // Cores fixas por partido (sigla como aparece nos dados do TSE).
+  const CORES_PARTIDO = {
+    'PT': '#d0021b', 'PL': '#1a3c8f', 'PDT': '#f07f1c', 'MDB': '#1e8e3e', 'PSD': '#f2c500', 'UNIÃO': '#5ab4f0',
+    'PP': '#00acc1', 'PSB': '#e4488f', 'REPUBLICANOS': '#00695c', 'PSDB': '#0b6fd1', 'AVANTE': '#a0522d',
+    'PSOL': '#8e24aa', 'NOVO': '#ffa000', 'PC DO B': '#8b0000', 'PV': '#9ccc65', 'CIDADANIA': '#ba68c8',
+    'PTB': '#37474f', 'PMN': '#6d4c41', 'PODE': '#5c6bc0', 'SOLIDARIEDADE': '#ff7043', 'PSC': '#2e7d32',
+    'PATRIOTA': '#283593', 'DC': '#1565c0', 'PSTU': '#b71c1c', 'PCB': '#880e4f', 'PCO': '#4e342e',
+    'PMB': '#f48fb1', 'PRTB': '#455a64', 'AGIR': '#ffca28', 'PROS': '#ff8a65', 'UP': '#6a1b9a', 'REDE': '#66bb6a',
+    'PRD': '#3f51b5', 'MOBILIZA': '#795548',
+  };
+  const CORES_PARTIDO_RESERVA = ['#90a4ae', '#78909c', '#8d6e63', '#a1887f', '#bdbdbd', '#9e9e9e'];
 
   const $ = (sel) => document.querySelector(sel);
   const el = {
@@ -55,6 +66,7 @@
   let geo = new Map(); // nome do bairro -> {lat, lng}
   let db = null; // dados da eleição carregada
   const mapa = { obj: null, camada: null, marcadores: new Map(), ajustado: false };
+  const expandido = { tabela: false, mapa: false }; // listas de candidatos com "ver todos" aberto
 
   // ---------- utilidades ----------
   const fmtInt = (n) => (n || 0).toLocaleString('pt-BR');
@@ -254,7 +266,7 @@
   function resumoBairros() {
     const porBairro = new Map();
     for (const s of db.secoes.values()) {
-      if (!porBairro.has(s.bairro)) porBairro.set(s.bairro, { bairro: s.bairro, aptos: 0, nSecoes: 0, nominal: 0, legenda: 0, branco: 0, nulo: 0, votosCand: 0, cands: new Map() });
+      if (!porBairro.has(s.bairro)) porBairro.set(s.bairro, { bairro: s.bairro, aptos: 0, nSecoes: 0, nominal: 0, legenda: 0, branco: 0, nulo: 0, votosCand: 0, cands: new Map(), legendas: new Map() });
       const r = porBairro.get(s.bairro);
       r.aptos += s.aptos;
       r.nSecoes += 1;
@@ -263,6 +275,7 @@
       if (v.cargo !== estado.cargo) continue;
       const r = porBairro.get(db.secoes.get(v.secao).bairro);
       r[v.tipo] += v.votos;
+      if (v.tipo === 'legenda') r.legendas.set(v.partido, (r.legendas.get(v.partido) || 0) + v.votos);
       if (v.tipo !== 'nominal') continue;
       if (v.numero === estado.cand) r.votosCand += v.votos;
       if (!r.cands.has(v.numero)) r.cands.set(v.numero, { numero: v.numero, nome: v.nome, partido: v.partido, votos: 0 });
@@ -366,13 +379,15 @@
     const cy = diametro / 2;
     const margem = opts.anel ? 3 : 1;
     const r = diametro / 2 - margem;
+    const traco = opts.traco == null ? 1.5 : opts.traco;
+    const borda = traco > 0 ? ' stroke="#fff" stroke-width="' + traco + '" stroke-linejoin="round"' : '';
     let html = '<svg width="' + diametro + '" height="' + diametro + '" viewBox="0 0 ' + diametro + ' ' + diametro + '" role="img" aria-label="' + esc(opts.titulo || 'Gráfico de pizza') + '">';
     if (total <= 0) {
       html += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="#e9eaec" stroke="#fff" stroke-width="1.5"/>';
     } else {
       const visiveis = fatias.filter((f) => f.valor > 0);
       if (visiveis.length === 1) {
-        html += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + visiveis[0].cor + '" stroke="#fff" stroke-width="1.5"/>';
+        html += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + visiveis[0].cor + '"' + borda + '/>';
       } else {
         let ang = -Math.PI / 2;
         for (const f of visiveis) {
@@ -383,7 +398,8 @@
           const y2 = cy + r * Math.sin(ang + delta);
           const grande = delta > Math.PI ? 1 : 0;
           html += '<path d="M' + cx + ',' + cy + ' L' + x1.toFixed(2) + ',' + y1.toFixed(2) +
-            ' A' + r + ',' + r + ' 0 ' + grande + ',1 ' + x2.toFixed(2) + ',' + y2.toFixed(2) + ' Z" fill="' + f.cor + '" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>';
+            ' A' + r + ',' + r + ' 0 ' + grande + ',1 ' + x2.toFixed(2) + ',' + y2.toFixed(2) + ' Z" fill="' + f.cor + '"' + borda + '>' +
+            '<title>' + esc(f.rotulo || '') + ': ' + fmtInt(f.valor) + ' (' + fmtPct(pct(f.valor, total)) + ')</title></path>';
           ang += delta;
         }
       }
@@ -392,36 +408,73 @@
     return html + '</svg>';
   }
 
-  /** Cores fixas para os 5 candidatos mais votados no município (no cargo atual). */
-  function coresCandidatos() {
-    const lista = Array.from((db.candidatos.get(estado.cargo) || new Map()).values())
-      .sort((a, b) => b.total - a.total).slice(0, CORES.length)
-      .map((c, i) => ({ numero: c.numero, nome: c.nome, partido: c.partido, cor: CORES[i] }));
-    return { lista, mapa: new Map(lista.map((c) => [c.numero, c.cor])) };
+  /** Cores fixas por partido, para os partidos com votos válidos no cargo atual (ordenados por votos no município). */
+  function coresPartidos() {
+    const totais = new Map();
+    for (const v of db.votos) {
+      if (v.cargo !== estado.cargo || (v.tipo !== 'nominal' && v.tipo !== 'legenda')) continue;
+      totais.set(v.partido, (totais.get(v.partido) || 0) + v.votos);
+    }
+    const mapa = new Map();
+    let reserva = 0;
+    const lista = Array.from(totais.entries()).sort((a, b) => b[1] - a[1]).map(([sigla, votos]) => {
+      let cor = CORES_PARTIDO[String(sigla).toUpperCase()];
+      if (!cor) { cor = CORES_PARTIDO_RESERVA[reserva % CORES_PARTIDO_RESERVA.length]; reserva++; }
+      mapa.set(sigla, cor);
+      return { sigla, votos, cor };
+    });
+    return { lista, mapa, cor: (sigla) => mapa.get(sigla) || COR_OUTROS };
   }
 
-  /** Fatias da pizza de um bairro: candidato x outros, ou os 5 mais votados do município x outros. */
-  function fatiasBairro(r, cores, cand) {
+  /** Fatias da pizza: todos os candidatos (e votos de legenda) com a cor do partido; ou candidato x demais. */
+  function fatiasVotos(ranking, legendas, validos, cores, cand, votosCand) {
     if (cand) {
       return [
-        { rotulo: cand.nome, valor: r.votosCand, cor: CORES[0] },
-        { rotulo: 'Outros candidatos e legenda', valor: Math.max(0, r.validos - r.votosCand), cor: COR_OUTROS },
+        { rotulo: cand.nome, valor: votosCand, cor: cores.cor(cand.partido) },
+        { rotulo: 'Demais votos válidos', valor: Math.max(0, validos - votosCand), cor: COR_OUTROS },
       ];
     }
-    let soma = 0;
-    const fatias = cores.lista.map((c) => {
-      const v = r.cands.has(c.numero) ? r.cands.get(c.numero).votos : 0;
-      soma += v;
-      return { rotulo: c.nome, valor: v, cor: c.cor };
-    });
-    fatias.push({ rotulo: 'Outros candidatos e legenda', valor: Math.max(0, r.validos - soma), cor: COR_OUTROS });
+    const fatias = ranking.map((c) => ({ rotulo: c.nome, valor: c.votos, cor: cores.cor(c.partido), partido: c.partido }));
+    for (const [partido, v] of legendas) fatias.push({ rotulo: 'Legenda ' + partido, valor: v, cor: cores.cor(partido), partido });
     return fatias;
+  }
+
+  /** Participação de cada partido (nominais + legenda) em um conjunto de votos. */
+  function participacaoPartidos(ranking, legendas, cores) {
+    const soma = new Map();
+    for (const c of ranking) soma.set(c.partido, (soma.get(c.partido) || 0) + c.votos);
+    for (const [partido, v] of legendas) soma.set(partido, (soma.get(partido) || 0) + v);
+    return Array.from(soma.entries()).sort((a, b) => b[1] - a[1]).map(([sigla, votos]) => ({ sigla, votos, cor: cores.cor(sigla) }));
+  }
+
+  /** Bloco com a pizza (todos os candidatos, cor do partido) e a participação por partido em %. */
+  function blocoPizzaPartidos(ranking, legendas, validos, cores, tituloTxt) {
+    const fatias = fatiasVotos(ranking, legendas, validos, cores, null, 0);
+    const partidos = participacaoPartidos(ranking, legendas, cores);
+    return '<div class="pizza-bloco">' + svgPizza(fatias, 132, { titulo: tituloTxt, traco: fatias.length > 40 ? 0.5 : 1 }) +
+      '<div class="pizza-lista">' + partidos.map((p) => '<div class="item"><span class="ponto" style="background:' + p.cor + '"></span><span class="nome">' + esc(p.sigla) + '</span>' +
+        '<span class="num"><b>' + fmtPct(pct(p.votos, validos)) + '</b>' + fmtInt(p.votos) + '</span></div>').join('') + '</div></div>';
+  }
+
+  /** Lista de candidatos com cor do partido: 5 primeiros e botão para ver todos. */
+  function listaCandidatos(ranking, validos, cores, chave) {
+    const todos = !!expandido[chave];
+    const itens = todos ? ranking : ranking.slice(0, 5);
+    let html = '<div class="detalhe-lista">' + itens.map((c) => '<button type="button" class="detalhe-item' + (c.numero === estado.cand ? ' atual' : '') + '" data-acao="cand" data-valor="' + esc(c.numero) + '">' +
+      '<span class="pos">' + c.posicao + 'º</span><span class="ponto-cor" style="background:' + cores.cor(c.partido) + '"></span>' +
+      '<span class="nome">' + esc(c.nome) + '<small>' + esc(c.partido) + '</small></span>' +
+      '<span class="num">' + fmtInt(c.votos) + '<small>' + fmtPct(pct(c.votos, validos)) + '</small></span></button>').join('') + '</div>';
+    if (ranking.length > 5) {
+      html += '<button type="button" class="btn btn-vermais" data-acao="vermais" data-valor="' + chave + '">' +
+        (todos ? 'Ver menos' : 'Ver todos os ' + ranking.length + ' candidatos') + '</button>';
+    }
+    return html;
   }
 
   function renderLegendaMapa(cores, cand) {
     const itens = cand
-      ? [{ rotulo: cand.nome + ' (' + cand.partido + ')', cor: CORES[0] }, { rotulo: 'Outros candidatos e legenda', cor: COR_OUTROS }]
-      : cores.lista.map((c) => ({ rotulo: c.nome + ' (' + c.partido + ')', cor: c.cor })).concat([{ rotulo: 'Outros candidatos e legenda', cor: COR_OUTROS }]);
+      ? [{ rotulo: cand.nome + ' (' + cand.partido + ')', cor: cores.cor(cand.partido) }, { rotulo: 'Demais votos válidos', cor: COR_OUTROS }]
+      : cores.lista.map((p) => ({ rotulo: p.sigla, cor: p.cor }));
     el.legendaMapa.innerHTML = itens.map((i) => '<span class="legenda-item"><span class="amostra" style="background:' + i.cor + '"></span>' + esc(i.rotulo) + '</span>').join('') +
       '<span class="legenda-item"><span class="amostra anel"></span>bairro selecionado</span>' +
       '<span class="legenda-item legenda-tam"><span class="circulo" style="width:10px;height:10px"></span><span class="circulo" style="width:18px;height:18px"></span>tamanho = ' + (cand ? 'votos do candidato' : 'votos válidos') + ' no bairro</span>';
@@ -553,11 +606,12 @@
     const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : 'em Paraipaba';
     renderResumoRanking(r, escopo);
 
+    const cores = coresPartidos();
     el.tituloDestaques.textContent = 'Mais votados ' + escopo;
-    el.destaques.innerHTML = r.linhas.slice(0, 5).map((l) => destaque({
-      pos: l.posicao + 'º', rotulo: l.nome + ' · ' + l.partido, numero: fmtInt(l.votos), sub: fmtPct(pct(l.votos, t.validos)),
-      acao: 'cand', valor: l.numero,
-    })).join('') || '<div class="vazio">Sem votos neste recorte.</div>';
+    el.destaques.innerHTML = r.linhas.length
+      ? blocoPizzaPartidos(r.linhas, r.legendas, t.validos, cores, 'Divisão dos votos válidos para ' + estado.cargo + ' ' + escopo) +
+        '<div class="detalhe-sub">' + r.linhas.length + ' candidatos com votos</div>' + listaCandidatos(r.linhas, t.validos, cores, 'tabela')
+      : '<div class="vazio">Sem votos neste recorte.</div>';
 
     el.titulo.textContent = 'Ranking · ' + estado.cargo + ' ' + escopo;
     el.dica.textContent = 'Clique em um candidato para ver os votos por ' + NOME_POR[estado.por] + '.';
@@ -570,11 +624,11 @@
     let html = linhas.map((l) => '<tr class="clicavel" data-cand="' + esc(l.numero) + '">' +
       '<td class="pos">' + l.posicao + '</td>' +
       '<td class="texto"><strong>' + esc(l.nome) + '</strong><span class="mono">' + esc(l.numero) + '</span></td>' +
-      '<td>' + esc(l.partido) + '</td><td class="num"><strong>' + fmtInt(l.votos) + '</strong></td>' +
+      '<td><span class="ponto-cor" style="background:' + cores.cor(l.partido) + '"></span>' + esc(l.partido) + '</td><td class="num"><strong>' + fmtInt(l.votos) + '</strong></td>' +
       '<td class="num">' + fmtPct(pct(l.votos, t.validos)) + '</td>' + barra(l.votos, maxVotos) + '</tr>').join('');
     if (!q && r.legendas.size) {
       html += Array.from(r.legendas.entries()).sort((a, b) => b[1] - a[1]).map(([partido, v]) =>
-        '<tr class="secundario"><td class="pos"></td><td class="texto">Votos de legenda</td><td>' + esc(partido) + '</td>' +
+        '<tr class="secundario"><td class="pos"></td><td class="texto">Votos de legenda</td><td><span class="ponto-cor" style="background:' + cores.cor(partido) + '"></span>' + esc(partido) + '</td>' +
         '<td class="num">' + fmtInt(v) + '</td><td class="num">' + fmtPct(pct(v, t.validos)) + '</td><td></td></tr>').join('');
     }
     el.tbody.innerHTML = html || '<tr><td colspan="6" class="vazio">Nenhum candidato encontrado para "' + esc(estado.busca) + '".</td></tr>';
@@ -605,12 +659,12 @@
     else renderResumoRanking(rankingCandidatos(), escopo);
 
     const resumo = resumoBairros();
-    const cores = coresCandidatos();
+    const cores = coresPartidos();
     const metrica = cand ? 'votosCand' : 'validos';
     el.tituloMapa.textContent = cand ? cand.nome + ' — votos por bairro' : 'Votos por bairro · ' + estado.cargo;
     el.dicaMapa.textContent = cand
       ? 'Cada pizza mostra a fatia do candidato nos votos válidos do bairro; o tamanho é proporcional aos votos dele. Clique para ver os detalhes.'
-      : 'Cada pizza mostra a divisão dos votos válidos do bairro entre os cinco mais votados no município; o tamanho é proporcional aos votos válidos. Clique para ver os detalhes.';
+      : 'Cada pizza divide os votos válidos do bairro entre todos os candidatos, com a cor do partido; o tamanho é proporcional aos votos válidos. Clique para ver os detalhes.';
     renderLegendaMapa(cores, cand);
 
     if (!garantirMapa()) { renderDetalheBairro(resumo, cand, cores); return; }
@@ -627,10 +681,10 @@
       const raio = Math.round(9 + 26 * Math.sqrt(valor / maximo));
       const selecionado = nome === estado.bairro;
       const diametro = 2 * raio;
-      const fatias = fatiasBairro(r, cores, cand);
+      const fatias = fatiasVotos(r.ranking, r.legendas, r.validos, cores, cand, r.votosCand);
       const marcador = L.marker([g.lat, g.lng], {
         icon: L.divIcon({
-          html: svgPizza(fatias, diametro, { anel: selecionado, titulo: titulo(nome) }),
+          html: svgPizza(fatias, diametro, { anel: selecionado, titulo: titulo(nome), traco: fatias.length > 12 ? 0 : 1.2 }),
           className: 'pizza-marcador',
           iconSize: [diametro, diametro],
           iconAnchor: [raio, raio],
@@ -670,10 +724,15 @@
     el.tituloBairro.textContent = titulo(estado.bairro);
     const stat = (rotulo, valor, sub) => '<div class="detalhe-stat"><span class="rotulo">' + esc(rotulo) + '</span><span class="valor">' + esc(valor) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span></div>';
 
-    const fatias = fatiasBairro(r, cores, cand);
-    let html = '<div class="pizza-bloco">' + svgPizza(fatias, 132, { titulo: 'Divisão dos votos válidos em ' + titulo(estado.bairro) }) +
-      '<div class="pizza-lista">' + fatias.map((f) => '<div class="item"><span class="ponto" style="background:' + f.cor + '"></span><span class="nome" title="' + esc(f.rotulo) + '">' + esc(f.rotulo) + '</span>' +
-        '<span class="num"><b>' + fmtPct(pct(f.valor, r.validos)) + '</b>' + fmtInt(f.valor) + '</span></div>').join('') + '</div></div>';
+    let html;
+    if (cand) {
+      const fatias = fatiasVotos(r.ranking, r.legendas, r.validos, cores, cand, r.votosCand);
+      html = '<div class="pizza-bloco">' + svgPizza(fatias, 132, { titulo: 'Votos de ' + cand.nome + ' em ' + titulo(estado.bairro) }) +
+        '<div class="pizza-lista">' + fatias.map((f) => '<div class="item"><span class="ponto" style="background:' + f.cor + '"></span><span class="nome" title="' + esc(f.rotulo) + '">' + esc(f.rotulo) + '</span>' +
+          '<span class="num"><b>' + fmtPct(pct(f.valor, r.validos)) + '</b>' + fmtInt(f.valor) + '</span></div>').join('') + '</div></div>';
+    } else {
+      html = blocoPizzaPartidos(r.ranking, r.legendas, r.validos, cores, 'Divisão dos votos válidos em ' + titulo(estado.bairro));
+    }
 
     html += '<div class="detalhe-stats">' +
       stat('Eleitores aptos', fmtInt(r.aptos), r.nSecoes + ' seções') +
@@ -689,13 +748,9 @@
         '</div>';
     }
 
-    html += '<div class="detalhe-sub">Mais votados no bairro</div><div class="detalhe-lista">' +
-      r.ranking.slice(0, 5).map((c) => '<button type="button" class="detalhe-item' + (c.numero === estado.cand ? ' atual' : '') + '" data-acao="cand" data-valor="' + esc(c.numero) + '">' +
-        '<span class="pos">' + c.posicao + 'º</span><span class="ponto-cor" style="background:' + (cand ? (c.numero === cand.numero ? CORES[0] : COR_OUTROS) : (cores.mapa.get(c.numero) || COR_OUTROS)) + '"></span>' +
-        '<span class="nome">' + esc(c.nome) + '<small>' + esc(c.partido) + '</small></span>' +
-        '<span class="num">' + fmtInt(c.votos) + '<small>' + fmtPct(pct(c.votos, r.validos)) + '</small></span></button>').join('') +
-      '</div>';
-    if (cand && r.posicaoCand && r.posicaoCand > 5) {
+    html += '<div class="detalhe-sub">Mais votados no bairro · ' + r.ranking.length + ' candidatos</div>' +
+      listaCandidatos(r.ranking, r.validos, cores, 'mapa');
+    if (cand && r.posicaoCand && r.posicaoCand > 5 && !expandido.mapa) {
       const c = r.ranking[r.posicaoCand - 1];
       html += '<div class="detalhe-lista"><div class="detalhe-item atual"><span class="pos">' + c.posicao + 'º</span><span class="nome">' + esc(c.nome) + '<small>' + esc(c.partido) + '</small></span>' +
         '<span class="num">' + fmtInt(c.votos) + '<small>' + fmtPct(pct(c.votos, r.validos)) + '</small></span></div></div>';
@@ -737,12 +792,13 @@
 
   /** Ações de navegação usadas por cartões, destaques, trilha, tabela e mapa. */
   function executarAcao(acao, valor) {
+    if (acao === 'vermais') { expandido[valor] = !expandido[valor]; render(false); return; }
     if (acao === 'inicio') { estado.cand = ''; estado.bairro = ''; estado.busca = ''; estado.tela = 'tabela'; }
     else if (acao === 'tela') { estado.tela = valor === 'mapa' ? 'mapa' : 'tabela'; }
     else if (acao === 'cargo') { estado.cand = ''; estado.busca = ''; }
     else if (acao === 'ranking') { estado.cand = ''; }
     else if (acao === 'cand') { estado.cand = valor; estado.busca = ''; }
-    else if (acao === 'bairro') { estado.bairro = valor; if (estado.cand && valor && estado.tela === 'tabela') estado.por = 'secao'; }
+    else if (acao === 'bairro') { estado.bairro = valor; expandido.mapa = false; expandido.tabela = false; if (estado.cand && valor && estado.tela === 'tabela') estado.por = 'secao'; }
     else if (acao === 'secoes') { estado.bairro = valor; estado.tela = 'tabela'; estado.por = 'secao'; }
     render(true);
     if (acao === 'cand' && estado.tela === 'tabela') window.scrollTo({ top: 0, behavior: 'smooth' });
