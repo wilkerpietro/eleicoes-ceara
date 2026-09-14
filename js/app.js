@@ -1,5 +1,6 @@
 /* Eleições Paraipaba — consulta de votação por bairro, local e seção.
-   Sem dependências: carrega os CSVs em data/ e monta as telas no navegador. */
+   Sem build: carrega os CSVs em data/ e monta as telas no navegador.
+   O mapa usa Leaflet (carregado no index.html) e as coordenadas de data/bairros.json. */
 (function () {
   'use strict';
 
@@ -8,20 +9,26 @@
   const REPO_URL = 'https://github.com/wilkerpietro/eleicoes-paraipaba';
   const NOME_POR = { bairro: 'bairro', local: 'local de votação', secao: 'seção' };
   const NOME_POR_CAB = { bairro: 'Bairro', local: 'Local de votação', secao: 'Seção' };
+  const TILES_URL = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+  const TILES_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
   const $ = (sel) => document.querySelector(sel);
   const el = {
     eleicao: $('#sel-eleicao'),
     navCargos: $('#nav-cargos'),
+    navTelas: $('#nav-telas'),
     candidato: $('#sel-candidato'),
     bairro: $('#sel-bairro'),
     busca: $('#inp-busca'),
+    campoPor: $('#campo-por'),
     limpar: $('#btn-limpar'),
     voltar: $('#btn-voltar'),
     avancar: $('#btn-avancar'),
     trilha: $('#trilha'),
     status: $('#status'),
     resumo: $('#resumo'),
+    gradeTabela: $('#grade-tabela'),
+    gradeMapa: $('#grade-mapa'),
     tituloDestaques: $('#titulo-destaques'),
     destaques: $('#destaques'),
     titulo: $('#titulo-tabela'),
@@ -29,13 +36,20 @@
     thead: $('#tabela thead'),
     tbody: $('#tabela tbody'),
     tfoot: $('#tabela tfoot'),
+    tituloMapa: $('#titulo-mapa'),
+    dicaMapa: $('#dica-mapa'),
+    mapa: $('#mapa'),
+    tituloBairro: $('#titulo-bairro'),
+    detalheBairro: $('#detalhe-bairro'),
     fonte: $('#fonte'),
     linkRepo: $('#link-repo'),
   };
 
-  const estado = { eleicao: '', cargo: '', cand: '', bairro: '', por: 'bairro', busca: '' };
+  const estado = { eleicao: '', cargo: '', cand: '', bairro: '', por: 'bairro', busca: '', tela: 'tabela' };
   let manifesto = null;
+  let geo = new Map(); // nome do bairro -> {lat, lng}
   let db = null; // dados da eleição carregada
+  const mapa = { obj: null, camada: null, marcadores: new Map(), ajustado: false };
 
   // ---------- utilidades ----------
   const fmtInt = (n) => (n || 0).toLocaleString('pt-BR');
@@ -74,11 +88,13 @@
     estado.bairro = p.get('bairro') || '';
     estado.por = ['bairro', 'local', 'secao'].includes(p.get('por')) ? p.get('por') : 'bairro';
     estado.busca = p.get('q') || '';
+    estado.tela = p.get('tela') === 'mapa' ? 'mapa' : 'tabela';
   }
 
   function hashAtual() {
     const p = new URLSearchParams();
     if (estado.eleicao) p.set('e', estado.eleicao);
+    if (estado.tela !== 'tabela') p.set('tela', estado.tela);
     if (estado.cargo) p.set('cargo', estado.cargo);
     if (estado.cand) p.set('cand', estado.cand);
     if (estado.bairro) p.set('bairro', estado.bairro);
@@ -87,16 +103,28 @@
     return '#' + p.toString();
   }
 
-  let ignorarHashchange = false;
+  let ignorarPopstate = false;
   function gravarHash(empilhar) {
     const novo = hashAtual();
     if (novo === location.hash) return;
-    ignorarHashchange = true;
+    ignorarPopstate = true;
     if (empilhar) history.pushState(null, '', novo); else history.replaceState(null, '', novo);
-    setTimeout(() => { ignorarHashchange = false; }, 0);
+    setTimeout(() => { ignorarPopstate = false; }, 0);
   }
 
   // ---------- carga de dados ----------
+  async function carregarGeo() {
+    try {
+      const resp = await fetch('data/bairros.json', { cache: 'no-cache' });
+      if (!resp.ok) throw new Error('data/bairros.json (' + resp.status + ')');
+      const json = await resp.json();
+      geo = new Map((json.bairros || []).filter((b) => b.lat != null && b.lng != null).map((b) => [b.nome, { lat: b.lat, lng: b.lng }]));
+    } catch (e) {
+      console.warn('Geolocalização dos bairros indisponível:', e);
+      geo = new Map();
+    }
+  }
+
   async function carregarEleicao(id) {
     const cfg = manifesto.eleicoes.find((e) => e.id === id) || manifesto.eleicoes[0];
     estado.eleicao = cfg.id;
@@ -145,6 +173,7 @@
       .sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
     db = { cfg, secoes, votos, cargos: ordenarCargos(Array.from(cargosSet)), candidatos, bairros };
+    mapa.ajustado = false;
     el.status.textContent = '';
     el.fonte.textContent = 'Fonte: ' + (cfg.fonte || 'TSE/TRE-CE') + '.';
   }
@@ -169,7 +198,7 @@
     return t;
   }
 
-  /** Votos do candidato selecionado agrupados por bairro / local / seção. */
+  /** Votos do candidato selecionado agrupados por bairro / local / seção (dentro do escopo). */
   function distribuicaoCandidato(por) {
     const secoes = secoesNoEscopo();
     const secaoSet = new Set(secoes.map((s) => s.secao));
@@ -216,6 +245,34 @@
     return { linhas, totais: totaisCargo(votosCargo), legendas, aptos: secoes.reduce((s, x) => s + x.aptos, 0), nSecoes: secoes.length };
   }
 
+  /** Resumo de todos os bairros do município para o cargo atual (usado pelo mapa). */
+  function resumoBairros() {
+    const porBairro = new Map();
+    for (const s of db.secoes.values()) {
+      if (!porBairro.has(s.bairro)) porBairro.set(s.bairro, { bairro: s.bairro, aptos: 0, nSecoes: 0, nominal: 0, legenda: 0, branco: 0, nulo: 0, votosCand: 0, cands: new Map() });
+      const r = porBairro.get(s.bairro);
+      r.aptos += s.aptos;
+      r.nSecoes += 1;
+    }
+    for (const v of db.votos) {
+      if (v.cargo !== estado.cargo) continue;
+      const r = porBairro.get(db.secoes.get(v.secao).bairro);
+      r[v.tipo] += v.votos;
+      if (v.tipo !== 'nominal') continue;
+      if (v.numero === estado.cand) r.votosCand += v.votos;
+      if (!r.cands.has(v.numero)) r.cands.set(v.numero, { numero: v.numero, nome: v.nome, partido: v.partido, votos: 0 });
+      r.cands.get(v.numero).votos += v.votos;
+    }
+    for (const r of porBairro.values()) {
+      r.validos = r.nominal + r.legenda;
+      r.comparecimento = r.validos + r.branco + r.nulo;
+      r.ranking = Array.from(r.cands.values()).sort((a, b) => b.votos - a.votos || a.nome.localeCompare(b.nome, 'pt-BR'));
+      r.ranking.forEach((c, i) => { c.posicao = i + 1; });
+      r.posicaoCand = estado.cand ? (r.ranking.findIndex((c) => c.numero === estado.cand) + 1) || null : null;
+    }
+    return porBairro;
+  }
+
   // ---------- render dos controles ----------
   function opcao(valor, texto, selecionado) {
     return '<option value="' + esc(valor) + '"' + (selecionado ? ' selected' : '') + '>' + esc(texto) + '</option>';
@@ -230,6 +287,7 @@
       return '<button type="button" class="nav-item' + (c === estado.cargo ? ' ativo' : '') + '" data-cargo="' + esc(c) + '">' +
         icone(ICONE_CARGO[c] || 'i-users') + '<span>' + esc(c) + '</span><span class="contagem">' + n + '</span></button>';
     }).join('');
+    el.navTelas.querySelectorAll('[data-tela]').forEach((b) => b.classList.toggle('ativo', b.dataset.tela === estado.tela));
 
     if (estado.bairro && !db.bairros.includes(estado.bairro)) estado.bairro = '';
     el.bairro.innerHTML = opcao('', 'Todo o município', !estado.bairro) +
@@ -244,25 +302,28 @@
       filtrados.map((c) => opcao(c.numero, c.numero + ' · ' + c.nome + ' (' + c.partido + ') — ' + fmtInt(c.total) + ' votos', c.numero === estado.cand)).join('');
 
     document.querySelectorAll('input[name="por"]').forEach((r) => { r.checked = r.value === estado.por; });
+    el.campoPor.hidden = estado.tela === 'mapa';
     if (el.busca.value !== estado.busca) el.busca.value = estado.busca;
   }
 
   function renderTrilha() {
-    const partes = [{ texto: db.cfg.nome, acao: 'inicio' }, { texto: estado.cargo, acao: 'cargo' }];
-    if (estado.bairro) partes.push({ texto: titulo(estado.bairro), acao: 'bairro' });
+    const partes = [{ texto: db.cfg.nome, acao: 'inicio' }];
+    if (estado.tela === 'mapa') partes.push({ texto: 'Mapa', acao: 'tela', valor: 'mapa' });
+    partes.push({ texto: estado.cargo, acao: 'cargo' });
+    if (estado.bairro) partes.push({ texto: titulo(estado.bairro), acao: 'bairro', valor: estado.bairro });
     if (estado.cand) {
       const c = db.candidatos.get(estado.cargo).get(estado.cand);
-      partes.push({ texto: c.nome, acao: 'cand' });
+      partes.push({ texto: c.nome, acao: 'cand', valor: c.numero });
     }
     el.trilha.innerHTML = partes.map((p, i) => {
       const ultimo = i === partes.length - 1;
       const item = ultimo ? '<span class="crumb atual">' + esc(p.texto) + '</span>'
-        : '<button type="button" class="crumb" data-acao="' + p.acao + '">' + esc(p.texto) + '</button>';
+        : '<button type="button" class="crumb" data-acao="' + p.acao + '" data-valor="' + esc(p.valor || '') + '">' + esc(p.texto) + '</button>';
       return (i ? '<span class="sep">›</span>' : '') + item;
     }).join('');
   }
 
-  // ---------- render de resultados ----------
+  // ---------- componentes ----------
   function card(opts) {
     const linha = opts.linha
       ? '<div class="card-linha"><span class="ponto ' + (opts.linha.cor || '') + '"></span><span>' + esc(opts.linha.rotulo) + '</span>' +
@@ -291,12 +352,9 @@
     return '<td class="barra-celula"><span class="barra" style="width:' + ((100 * valor) / maximo).toFixed(1) + '%"></span></td>';
   }
 
-  function renderCandidato() {
-    const cand = db.candidatos.get(estado.cargo).get(estado.cand);
-    const d = distribuicaoCandidato(estado.por);
-    const ranking = rankingCandidatos();
+  // ---------- cartões de resumo ----------
+  function renderResumoCandidato(cand, d, ranking, escopo) {
     const posicao = ranking.linhas.find((l) => l.numero === estado.cand);
-    const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : 'em Paraipaba';
     const porBairro = estado.bairro ? null : distribuicaoCandidato('bairro');
     const maiorBairro = porBairro && porBairro.linhas[0];
 
@@ -315,7 +373,7 @@
         ? card({
           icone: 'i-pin', rotulo: 'Bairro com mais votos', valor: titulo(maiorBairro.bairro),
           linha: { rotulo: 'Votos no bairro:', valor: fmtInt(maiorBairro.votos) + ' (' + fmtPct(pct(maiorBairro.votos, maiorBairro.validos)) + ')', cor: 'verde' },
-          rodape: { texto: 'Ver seções do bairro', acao: 'bairro', valor: maiorBairro.bairro },
+          rodape: { texto: estado.tela === 'mapa' ? 'Ver no mapa' : 'Ver seções do bairro', acao: 'bairro', valor: maiorBairro.bairro },
         })
         : card({
           icone: 'i-pin', rotulo: 'Seções ' + escopo, valor: fmtInt(secoesNoEscopo().length),
@@ -328,8 +386,41 @@
         rodape: { texto: 'Comparecimento e brancos/nulos no ranking', acao: 'ranking' },
       }),
     ].join('');
+  }
 
-    // destaques laterais: top 5 do agrupamento atual
+  function renderResumoRanking(r, escopo) {
+    const t = r.totais;
+    el.resumo.innerHTML = [
+      card({
+        icone: 'i-users', rotulo: 'Eleitores aptos ' + escopo, valor: fmtInt(r.aptos),
+        linha: { rotulo: 'Seções eleitorais:', valor: fmtInt(r.nSecoes), cor: '' },
+        rodape: estado.bairro ? { texto: 'Ver todo o município', acao: 'bairro', valor: '' } : { texto: db.cfg.data ? 'Votação em ' + db.cfg.data.split('-').reverse().join('/') : '' },
+      }),
+      card({
+        icone: 'i-check', rotulo: 'Comparecimento', valor: fmtInt(t.comparecimento),
+        linha: { rotulo: 'Abstenção:', valor: fmtPct(pct(r.aptos - t.comparecimento, r.aptos)), cor: 'vermelho' },
+        rodape: { texto: fmtPct(pct(t.comparecimento, r.aptos)) + ' dos aptos compareceram' },
+      }),
+      card({
+        icone: 'i-vote', rotulo: 'Votos válidos · ' + estado.cargo, valor: fmtInt(t.validos),
+        linha: { rotulo: 'Votos de legenda:', valor: fmtInt(t.legenda), cor: '' },
+        rodape: { texto: 'Nominais: ' + fmtInt(t.nominal) },
+      }),
+      card({
+        icone: 'i-flag', rotulo: 'Brancos e nulos', valor: fmtInt(t.branco + t.nulo),
+        linha: { rotulo: 'Do comparecimento:', valor: fmtPct(pct(t.branco + t.nulo, t.comparecimento)), cor: 'laranja' },
+        rodape: { texto: 'Brancos ' + fmtInt(t.branco) + ' · nulos ' + fmtInt(t.nulo) },
+      }),
+    ].join('');
+  }
+
+  // ---------- tela de tabelas ----------
+  function renderCandidato() {
+    const cand = db.candidatos.get(estado.cargo).get(estado.cand);
+    const d = distribuicaoCandidato(estado.por);
+    const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : 'em Paraipaba';
+    renderResumoCandidato(cand, d, rankingCandidatos(), escopo);
+
     el.tituloDestaques.textContent = 'Top ' + NOME_POR[estado.por] + (estado.por === 'local' ? 'is' : 's');
     const top = d.linhas.filter((g) => g.votos > 0).slice(0, 5);
     el.destaques.innerHTML = top.map((g, i) => destaque({
@@ -375,29 +466,7 @@
     const r = rankingCandidatos();
     const t = r.totais;
     const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : 'em Paraipaba';
-
-    el.resumo.innerHTML = [
-      card({
-        icone: 'i-users', rotulo: 'Eleitores aptos ' + escopo, valor: fmtInt(r.aptos),
-        linha: { rotulo: 'Seções eleitorais:', valor: fmtInt(r.nSecoes), cor: '' },
-        rodape: estado.bairro ? { texto: 'Ver todo o município', acao: 'bairro', valor: '' } : { texto: db.cfg.data ? 'Votação em ' + db.cfg.data.split('-').reverse().join('/') : '' },
-      }),
-      card({
-        icone: 'i-check', rotulo: 'Comparecimento', valor: fmtInt(t.comparecimento),
-        linha: { rotulo: 'Abstenção:', valor: fmtPct(pct(r.aptos - t.comparecimento, r.aptos)), cor: 'vermelho' },
-        rodape: { texto: fmtPct(pct(t.comparecimento, r.aptos)) + ' dos aptos compareceram' },
-      }),
-      card({
-        icone: 'i-vote', rotulo: 'Votos válidos · ' + estado.cargo, valor: fmtInt(t.validos),
-        linha: { rotulo: 'Votos de legenda:', valor: fmtInt(t.legenda), cor: '' },
-        rodape: { texto: 'Nominais: ' + fmtInt(t.nominal) },
-      }),
-      card({
-        icone: 'i-flag', rotulo: 'Brancos e nulos', valor: fmtInt(t.branco + t.nulo),
-        linha: { rotulo: 'Do comparecimento:', valor: fmtPct(pct(t.branco + t.nulo, t.comparecimento)), cor: 'laranja' },
-        rodape: { texto: 'Brancos ' + fmtInt(t.branco) + ' · nulos ' + fmtInt(t.nulo) },
-      }),
-    ].join('');
+    renderResumoRanking(r, escopo);
 
     el.tituloDestaques.textContent = 'Mais votados ' + escopo;
     el.destaques.innerHTML = r.linhas.slice(0, 5).map((l) => destaque({
@@ -428,11 +497,133 @@
       '<td class="num">100,0%</td><td></td></tr>';
   }
 
+  // ---------- tela de mapa ----------
+  function garantirMapa() {
+    if (mapa.obj) return true;
+    if (typeof L === 'undefined') {
+      el.mapa.innerHTML = '<div class="vazio">Não foi possível carregar a biblioteca do mapa (Leaflet). Verifique a conexão com a internet.</div>';
+      return false;
+    }
+    mapa.obj = L.map(el.mapa, { scrollWheelZoom: true, zoomControl: true });
+    L.tileLayer(TILES_URL, { attribution: TILES_ATTR, subdomains: 'abcd', maxZoom: 19 }).addTo(mapa.obj);
+    mapa.camada = L.layerGroup().addTo(mapa.obj);
+    mapa.obj.setView([-3.43, -39.17], 12);
+    return true;
+  }
+
+  function renderMapa() {
+    const cand = estado.cand ? db.candidatos.get(estado.cargo).get(estado.cand) : null;
+    const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : 'em Paraipaba';
+
+    // cartões de resumo iguais aos da tela de tabelas
+    if (cand) renderResumoCandidato(cand, distribuicaoCandidato('bairro'), rankingCandidatos(), escopo);
+    else renderResumoRanking(rankingCandidatos(), escopo);
+
+    const resumo = resumoBairros();
+    const metrica = cand ? 'votosCand' : 'validos';
+    el.tituloMapa.textContent = cand ? cand.nome + ' — votos por bairro' : 'Votos válidos por bairro · ' + estado.cargo;
+    el.dicaMapa.textContent = 'O tamanho do círculo é proporcional ' + (cand ? 'aos votos do candidato' : 'aos votos válidos') + ' no bairro. Clique para ver os detalhes.';
+
+    if (!garantirMapa()) { renderDetalheBairro(resumo, cand); return; }
+
+    mapa.camada.clearLayers();
+    mapa.marcadores.clear();
+    const valores = Array.from(resumo.values()).map((r) => r[metrica]);
+    const maximo = Math.max(1, ...valores);
+    const pontos = [];
+    for (const [nome, r] of resumo) {
+      const g = geo.get(nome);
+      if (!g) continue;
+      const valor = r[metrica];
+      const raio = 7 + 24 * Math.sqrt(valor / maximo);
+      const selecionado = nome === estado.bairro;
+      const marcador = L.circleMarker([g.lat, g.lng], {
+        radius: raio,
+        color: selecionado ? '#b45309' : '#2f6fed',
+        weight: selecionado ? 2.5 : 1.5,
+        fillColor: selecionado ? '#f59e0b' : '#2f6fed',
+        fillOpacity: selecionado ? 0.6 : 0.4,
+      });
+      const linha2 = cand
+        ? fmtInt(r.votosCand) + ' votos · ' + fmtPct(pct(r.votosCand, r.validos)) + ' dos válidos' + (r.posicaoCand ? ' · ' + r.posicaoCand + 'º no bairro' : '')
+        : fmtInt(r.validos) + ' votos válidos · ' + fmtInt(r.aptos) + ' aptos';
+      marcador.bindTooltip('<b>' + esc(titulo(nome)) + '</b>' + linha2, { className: 'rotulo-bairro', direction: 'top', offset: [0, -raio], opacity: 1 });
+      marcador.on('click', () => executarAcao('bairro', nome === estado.bairro ? '' : nome));
+      marcador.addTo(mapa.camada);
+      mapa.marcadores.set(nome, marcador);
+      pontos.push([g.lat, g.lng]);
+    }
+    selecionadoNoTopo();
+
+    setTimeout(() => {
+      mapa.obj.invalidateSize();
+      if (!mapa.ajustado && pontos.length) {
+        mapa.obj.fitBounds(L.latLngBounds(pontos), { padding: [30, 30] });
+        mapa.ajustado = true;
+      }
+    }, 0);
+
+    renderDetalheBairro(resumo, cand);
+  }
+
+  function selecionadoNoTopo() {
+    const m = mapa.marcadores.get(estado.bairro);
+    if (m && m.bringToFront) m.bringToFront();
+    return !!m;
+  }
+
+  function renderDetalheBairro(resumo, cand) {
+    if (!estado.bairro || !resumo.has(estado.bairro)) {
+      el.tituloBairro.textContent = 'Detalhes do bairro';
+      el.detalheBairro.innerHTML = '<div class="vazio">Clique em um bairro no mapa (ou escolha no filtro) para ver ' +
+        (cand ? 'a votação de ' + esc(cand.nome) : 'os candidatos mais votados') + ' naquele bairro.</div>';
+      return;
+    }
+    const r = resumo.get(estado.bairro);
+    el.tituloBairro.textContent = titulo(estado.bairro);
+    const stat = (rotulo, valor, sub) => '<div class="detalhe-stat"><span class="rotulo">' + esc(rotulo) + '</span><span class="valor">' + esc(valor) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span></div>';
+
+    let html = '<div class="detalhe-stats">' +
+      stat('Eleitores aptos', fmtInt(r.aptos), r.nSecoes + ' seções') +
+      stat('Comparecimento', fmtInt(r.comparecimento), fmtPct(pct(r.comparecimento, r.aptos))) +
+      stat('Válidos · ' + estado.cargo, fmtInt(r.validos), 'legenda ' + fmtInt(r.legenda)) +
+      stat('Brancos e nulos', fmtInt(r.branco + r.nulo), fmtPct(pct(r.branco + r.nulo, r.comparecimento))) +
+      '</div>';
+
+    if (cand) {
+      html += '<div class="detalhe-stats">' +
+        stat('Votos de ' + cand.nome, fmtInt(r.votosCand), fmtPct(pct(r.votosCand, r.validos)) + ' dos válidos') +
+        stat('Posição no bairro', r.posicaoCand ? r.posicaoCand + 'º' : '—', 'entre ' + r.ranking.length) +
+        '</div>';
+    }
+
+    html += '<div class="detalhe-sub">Mais votados no bairro</div><div class="detalhe-lista">' +
+      r.ranking.slice(0, 5).map((c) => '<button type="button" class="detalhe-item' + (c.numero === estado.cand ? ' atual' : '') + '" data-acao="cand" data-valor="' + esc(c.numero) + '">' +
+        '<span class="pos">' + c.posicao + 'º</span><span class="nome">' + esc(c.nome) + '<small>' + esc(c.partido) + '</small></span>' +
+        '<span class="num">' + fmtInt(c.votos) + '<small>' + fmtPct(pct(c.votos, r.validos)) + '</small></span></button>').join('') +
+      '</div>';
+    if (cand && r.posicaoCand && r.posicaoCand > 5) {
+      const c = r.ranking[r.posicaoCand - 1];
+      html += '<div class="detalhe-lista"><div class="detalhe-item atual"><span class="pos">' + c.posicao + 'º</span><span class="nome">' + esc(c.nome) + '<small>' + esc(c.partido) + '</small></span>' +
+        '<span class="num">' + fmtInt(c.votos) + '<small>' + fmtPct(pct(c.votos, r.validos)) + '</small></span></div></div>';
+    }
+    html += '<div class="detalhe-acoes">' +
+      '<button type="button" class="btn" data-acao="secoes" data-valor="' + esc(estado.bairro) + '">Ver seções do bairro</button>' +
+      '<button type="button" class="btn" data-acao="bairro" data-valor="">Limpar seleção</button></div>';
+    el.detalheBairro.innerHTML = html;
+  }
+
+  // ---------- render geral ----------
   function render(empilhar) {
     if (!db) return;
     renderControles();
     renderTrilha();
-    if (estado.cand) renderCandidato(); else renderRanking();
+    const noMapa = estado.tela === 'mapa';
+    el.gradeTabela.hidden = noMapa;
+    el.gradeMapa.hidden = !noMapa;
+    if (noMapa) renderMapa();
+    else if (estado.cand) renderCandidato();
+    else renderRanking();
     gravarHash(empilhar);
   }
 
@@ -451,15 +642,17 @@
     }
   }
 
-  /** Ações de navegação usadas por cartões, destaques, trilha e tabela. */
+  /** Ações de navegação usadas por cartões, destaques, trilha, tabela e mapa. */
   function executarAcao(acao, valor) {
-    if (acao === 'inicio') { estado.cand = ''; estado.bairro = ''; estado.busca = ''; }
+    if (acao === 'inicio') { estado.cand = ''; estado.bairro = ''; estado.busca = ''; estado.tela = 'tabela'; }
+    else if (acao === 'tela') { estado.tela = valor === 'mapa' ? 'mapa' : 'tabela'; }
     else if (acao === 'cargo') { estado.cand = ''; estado.busca = ''; }
     else if (acao === 'ranking') { estado.cand = ''; }
     else if (acao === 'cand') { estado.cand = valor; estado.busca = ''; }
-    else if (acao === 'bairro') { estado.bairro = valor; if (estado.cand && valor) estado.por = 'secao'; }
+    else if (acao === 'bairro') { estado.bairro = valor; if (estado.cand && valor && estado.tela === 'tabela') estado.por = 'secao'; }
+    else if (acao === 'secoes') { estado.bairro = valor; estado.tela = 'tabela'; estado.por = 'secao'; }
     render(true);
-    if (acao === 'cand') window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (acao === 'cand' && estado.tela === 'tabela') window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   // ---------- eventos ----------
@@ -469,6 +662,10 @@
     if (!b) return;
     estado.cargo = b.dataset.cargo; estado.cand = ''; estado.busca = '';
     render(true);
+  });
+  el.navTelas.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-tela]');
+    if (b) executarAcao('tela', b.dataset.tela);
   });
   el.candidato.addEventListener('change', () => { estado.cand = el.candidato.value; render(true); });
   el.bairro.addEventListener('change', () => { estado.bairro = el.bairro.value; render(true); });
@@ -490,7 +687,7 @@
   });
 
   window.addEventListener('popstate', () => {
-    if (ignorarHashchange) return;
+    if (ignorarPopstate) return;
     const anterior = estado.eleicao;
     lerHash();
     if (estado.eleicao !== anterior) trocarEleicao(estado.eleicao); else render(false);
@@ -505,6 +702,7 @@
       manifesto = await resp.json();
       estado.eleicao = manifesto.eleicoes[0].id;
       lerHash();
+      await carregarGeo();
       await trocarEleicao(estado.eleicao);
     } catch (e) {
       mostrarErro(e);

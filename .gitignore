@@ -5,3 +5,5 @@ data/raw/*.ZIP
 .claude/
 .DS_Store
 Thumbs.db
+~$*
+/*.xlsx

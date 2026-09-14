@@ -12,6 +12,13 @@ Site estático, sem dependências: HTML, CSS e JavaScript puro lendo os CSVs da 
 - Navegação por clique: candidato no ranking abre a distribuição; bairro na tabela abre as seções daquele bairro.
 - Estado na URL (`#cargo=...&cand=...&bairro=...`) para compartilhar consultas.
 
+## Mapa por bairro (etapa 2)
+
+- Tela **Mapa por bairro** no menu lateral: um círculo por bairro, com tamanho proporcional aos votos válidos do cargo (sem candidato) ou aos votos do candidato selecionado.
+- Clicar em um bairro abre o painel de detalhes: aptos, comparecimento, válidos, brancos/nulos, os cinco mais votados no bairro e, com candidato selecionado, os votos e a posição dele ali.
+- As coordenadas (centro aproximado de cada bairro) ficam em `data/bairros.json`, extraídas da planilha `data/raw/Geolocalização dos bairros.xlsx`.
+- O mapa usa [Leaflet](https://leafletjs.com/) (carregado via CDN) com mapa base do [CARTO](https://carto.com/attributions) sobre dados do [OpenStreetMap](https://www.openstreetmap.org/copyright). Sem internet, as tabelas continuam funcionando; só o mapa fica indisponível.
+
 ## Como rodar localmente
 
 Os dados são carregados via `fetch`, então a página precisa ser servida por HTTP (abrir o `index.html` direto do disco não funciona).
@@ -92,7 +99,7 @@ Os cargos (Prefeito, Vereador) são detectados automaticamente a partir do CSV.
 ## Roteiro
 
 - [x] Etapa 1: consulta por candidato com votos por bairro e seção (Eleições 2022).
-- [ ] Etapa 2: mapa interativo com a geolocalização de cada bairro (preencher `data/bairros.json` e adicionar camada com Leaflet, clicando no bairro para ver os dados eleitorais).
+- [x] Etapa 2: mapa interativo com a geolocalização de cada bairro (Leaflet), clicando no bairro para ver os dados eleitorais.
 - [ ] Etapa 3: incluir os dados das Eleições Municipais 2024.
 - [ ] Publicar no GitHub Pages.
 
