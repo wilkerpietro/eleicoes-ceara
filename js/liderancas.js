@@ -19,7 +19,7 @@
   let tse2026 = null;   // candidatos de 2026 do TSE
   let ctx = null;       // contexto passado pelo app: { el, tela, cdMun, nomeMun, municipios, candidatos2026, fotos2026 }
   const cache = {};     // por município: listas de referência (vereadores/prefeitos 2024, deputados 2022)
-  const ui = { modal: null, editando: null, busca: '', candidato: '', cargo26: '', busca26: '', novoCandidato: false, aviso: '' };
+  const ui = { modal: null, editando: null, busca: '', candidato: '', abaEst: 'federal', cargo26: '', busca26: '', novoCandidato: false, aviso: '' };
 
   // ---------- utilidades ----------
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -441,65 +441,85 @@
   }
 
   // ---------- tela Estimativa ----------
+  const ABAS_EST = [
+    { id: 'federal', rotulo: 'Deputado Federal', cargos: ['Deputado Federal'] },
+    { id: 'estadual', rotulo: 'Deputado Estadual', cargos: ['Deputado Estadual'] },
+    { id: 'majoritarios', rotulo: 'Presidente, Governador e Senador', cargos: ['Presidente', 'Governador', 'Senador'] },
+  ];
+
   function renderEstimativa(cd, lista) {
     const cands = candidatos2026();
     if (ui.candidato && !candidato2026(ui.candidato)) ui.candidato = '';
-    const resumo = estimativasPorCandidato(cd);
-    let html = '<section class="painel"><div class="painel-cabecalho"><h2>Estimativa por candidato em ' + esc(ctx.nomeMun) + '</h2>' +
-      '<span class="dica">Soma do que as lideranças do município devem dar a cada candidato em 2026. Clique no candidato para montar ou ajustar o grupo.</span></div>' +
-      '<div class="tabela-scroll"><table class="la-tabela"><thead><tr><th>Candidato</th><th>Cargo</th><th>Partido</th><th class="num">Lideranças</th><th class="num">Estimativa de votos</th></tr></thead><tbody>' +
-      (resumo.map((e) => '<tr class="clicavel' + (e.c.id === ui.candidato ? ' selecionado' : '') + '" data-la="sel-cand-est" data-id="' + e.c.id + '">' +
-        '<td class="texto"><span class="cand-linha">' + avatar(e.c.nome, e.c.foto, 36) + '<span><strong>' + esc(e.c.nome) + '</strong>' + (e.c.numero ? '<small class="dica"> · nº ' + esc(e.c.numero) + '</small>' : '') + '</span></span></td>' +
-        '<td>' + esc(e.c.cargo) + '</td><td>' + esc(e.c.partido || '') + '</td><td class="num">' + e.n + '</td><td class="num"><strong>' + fmtInt(e.total) + '</strong></td></tr>').join('') ||
-        '<tr><td colspan="5" class="vazio">Nenhuma estimativa ainda. Escolha um candidato abaixo e adicione lideranças ao grupo, ou informe os candidatos de 2026 na ficha de cada liderança.</td></tr>') +
-      '</tbody></table></div>' +
-      '<div class="la-linha la-add"><select data-la="sel-grupo" class="la-sel-grupo"><option value="">— escolher outro candidato para montar o grupo —</option>' +
-      CARGOS_2026.map((cargo) => {
-        const doCargo = cands.filter((c) => c.cargo === cargo).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-        return doCargo.length ? '<optgroup label="' + esc(cargo) + '">' + doCargo.map((c) => '<option value="' + c.id + '"' + (c.id === ui.candidato ? ' selected' : '') + '>' + esc(rotuloCand(c)) + (c.origem === 'manual' ? ' · manual' : '') + '</option>').join('') + '</optgroup>' : '';
-      }).join('') +
-      '</select><button type="button" class="btn" data-la="novo-cand-grupo">+ Candidato manual</button></div>' + renderNovoCandidato() + '</section>';
-    if (!ui.candidato) return html;
+    const aba = ABAS_EST.find((a) => a.id === ui.abaEst) || ABAS_EST[0];
+    const todas = estimativasPorCandidato(cd);
+    const totalAba = (a) => todas.filter((e) => a.cargos.includes(e.c.cargo)).reduce((s, e) => s + e.total, 0);
+    let linhas = todas.filter((e) => aba.cargos.includes(e.c.cargo));
+    // candidato escolhido no seletor que ainda não tem lideranças aparece na lista para começar o grupo
+    const escolhido = ui.candidato ? candidato2026(ui.candidato) : null;
+    if (escolhido && aba.cargos.includes(escolhido.cargo) && !linhas.some((e) => e.c.id === escolhido.id)) {
+      linhas = linhas.concat([{ c: escolhido, n: 0, total: 0, municipios: new Set() }]);
+    }
+    const abas = '<div class="segmentado la-abas">' + ABAS_EST.map((a) => '<button type="button" class="' + (a.id === aba.id ? 'ativo' : '') + '" data-la="aba-est" data-valor="' + a.id + '">' +
+      esc(a.rotulo) + ' <span class="contagem">' + fmtInt(totalAba(a)) + '</span></button>').join('') + '</div>';
+    const seletor = '<select data-la="sel-grupo" class="la-sel-grupo"><option value="">— montar grupo para outro candidato a ' + esc(aba.rotulo) + ' —</option>' +
+      aba.cargos.map((cargo) => {
+        const doCargo = cands.filter((c) => c.cargo === cargo && !linhas.some((e) => e.c.id === c.id)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+        return doCargo.length ? '<optgroup label="' + esc(cargo) + '">' + doCargo.map((c) => '<option value="' + c.id + '">' + esc(rotuloCand(c)) + (c.origem === 'manual' ? ' · manual' : '') + '</option>').join('') + '</optgroup>' : '';
+      }).join('') + '</select>';
 
-    const c = candidato2026(ui.candidato);
+    const corpo = linhas.map((e) => {
+      const aberto = ui.candidato === e.c.id;
+      const linha = '<tr class="' + (aberto ? 'selecionado' : '') + '">' +
+        '<td class="texto"><span class="cand-linha">' + avatar(e.c.nome, e.c.foto, 40) + '<span><strong>' + esc(e.c.nome) + '</strong>' +
+          '<small class="dica"> · ' + esc(e.c.cargo) + (e.c.numero ? ' · nº ' + esc(e.c.numero) : '') + (e.c.partido ? ' · ' + esc(e.c.partido) : '') + '</small></span></span></td>' +
+        '<td class="num">' + e.n + '</td><td class="num"><strong>' + fmtInt(e.total) + '</strong></td>' +
+        '<td class="la-td-acoes"><button type="button" class="btn btn-mini' + (aberto ? '' : ' btn-primario') + '" data-la="detalhar" data-id="' + e.c.id + '">' + (aberto ? 'Ocultar' : 'Detalhar') + '</button></td></tr>';
+      return linha + (aberto ? '<tr class="la-expandido"><td colspan="4">' + renderGrupoCandidato(cd, lista, e.c) + '</td></tr>' : '');
+    }).join('') || '<tr><td colspan="4" class="vazio">Nenhuma estimativa para ' + esc(aba.rotulo) + ' em ' + esc(ctx.nomeMun) + ' ainda. Escolha um candidato abaixo para montar o grupo, ou informe os candidatos de 2026 na ficha de cada liderança.</td></tr>';
+
+    return '<section class="painel"><div class="painel-cabecalho"><h2>Estimativa por candidato em ' + esc(ctx.nomeMun) + '</h2>' +
+      '<span class="dica">Soma do que as lideranças do município devem dar a cada candidato em 2026. "Detalhar" mostra as lideranças que apoiam o candidato.</span></div>' +
+      '<div class="la-barra">' + abas + '</div>' +
+      '<div class="tabela-scroll"><table class="la-tabela la-est-tabela"><thead><tr><th>Candidato</th><th class="num">Lideranças</th><th class="num">Estimativa de votos</th><th></th></tr></thead><tbody>' + corpo + '</tbody>' +
+      '<tfoot><tr><td>Total · ' + esc(aba.rotulo) + '</td><td class="num">' + linhas.reduce((s, e) => s + e.n, 0) + '</td><td class="num">' + fmtInt(linhas.reduce((s, e) => s + e.total, 0)) + '</td><td></td></tr></tfoot></table></div>' +
+      '<div class="la-linha la-add">' + seletor + '<button type="button" class="btn" data-la="novo-cand-grupo">+ Candidato manual</button></div>' + renderNovoCandidato() + '</section>';
+  }
+
+  /** Bloco expandido de um candidato: lideranças que o apoiam no município, totais e inclusão de novas. */
+  function renderGrupoCandidato(cd, lista, c) {
     const g = grupo(c.id, cd);
     const gTodos = grupo(c.id, null);
     const municipios = new Set(gTodos.itens.map((i) => i.l.cd_mun));
     const disponiveis = lista.filter((l) => !g.itens.some((i) => i.l.id === l.id)).sort((a, b) => (b.votos2024 || 0) - (a.votos2024 || 0));
     const base2024 = g.itens.reduce((s, i) => s + (i.l.votos2024 || 0), 0);
-
-    html += '<section class="painel la-cand-topo"><span class="cand-linha">' + avatar(c.nome, c.foto, 56) + '<span><strong>' + esc(c.nome) + '</strong> · ' + esc(c.cargo) + (c.numero ? ' · nº ' + esc(c.numero) : '') + (c.partido ? ' · ' + esc(c.partido) : '') +
-      (c.nomeCompleto && c.nomeCompleto !== c.nome ? '<br><small class="dica">' + esc(titulo(c.nomeCompleto)) + (c.ocupacao ? ' · ' + esc(titulo(c.ocupacao)) : '') + '</small>' : '') + '</span></span></section>';
-
-    html += '<section class="cards">' +
-      card(fmtInt(g.total), 'Expectativa de votos em ' + ctx.nomeMun, g.itens.length + ' lideranças no grupo') +
+    let html = '<div class="cards la-cards-grupo">' +
+      card(fmtInt(g.total), 'Expectativa em ' + ctx.nomeMun, g.itens.length + ' lideranças no grupo') +
       card(fmtInt(base2024), 'Votos das lideranças em 2024', 'soma dos votos para vereador (referência)') +
       card(fmtInt(gTodos.total), 'Expectativa total no Ceará', municipios.size + ' município' + (municipios.size === 1 ? '' : 's') + ' com grupo') +
-      '</section>';
-
-    html += '<section class="painel"><div class="painel-cabecalho"><h2>Grupo de ' + esc(c.nome) + ' em ' + esc(ctx.nomeMun) + '</h2><span class="dica">A estimativa é editável na própria linha; o total soma as estimativas.</span></div>' +
-      '<div class="tabela-scroll"><table class="la-tabela"><thead><tr><th class="pos">#</th><th>Liderança</th><th class="num">Votos 2024</th><th class="num">Expectativa 2026</th><th class="num">Estimativa p/ ' + esc(c.nome) + '</th><th></th></tr></thead><tbody>' +
+      '</div>';
+    html += '<div class="tabela-scroll"><table class="la-tabela"><thead><tr><th class="pos">#</th><th>Liderança que apoia ' + esc(c.nome) + '</th><th class="num">Votos 2024</th><th class="num">Expectativa 2026</th><th class="num">Estimativa p/ ' + esc(c.nome) + '</th><th></th></tr></thead><tbody>' +
       (g.itens.map((i, idx) => '<tr><td class="pos">' + (idx + 1) + '</td>' +
-        '<td class="texto"><span class="cand-linha">' + avatar(i.l.nome, i.l.foto, 30) + '<span><strong>' + esc(i.l.nome) + '</strong>' + (i.l.partido ? '<small class="dica"> · ' + esc(i.l.partido) + '</small>' : '') + '</span></span></td>' +
+        '<td class="texto"><span class="cand-linha">' + avatar(i.l.nome, i.l.foto, 30) + '<span><strong>' + esc(i.l.nome) + '</strong>' + (i.l.partido ? '<small class="dica"> · ' + esc(i.l.partido) + '</small>' : '') +
+          (bairrosTexto(i.l) ? '<br><small class="dica">' + esc(bairrosTexto(i.l)) + '</small>' : '') + '</span></span></td>' +
         '<td class="num">' + (i.l.origem === 'vereador2024' ? fmtInt(i.l.votos2024) : '—') + '</td>' +
         '<td class="num">' + (expectativa2026(i.l) ? fmtInt(expectativa2026(i.l)) : '—') + '</td>' +
         '<td class="num"><input type="number" min="0" step="1" class="la-est" value="' + (i.estimativa || '') + '" data-la="estimativa" data-id="' + i.l.id + '" data-chave="' + g.chave + '"></td>' +
-        '<td class="la-td-acoes"><button type="button" class="btn btn-mini" data-la="remover-grupo" data-id="' + i.l.id + '" data-chave="' + g.chave + '" title="Tirar do grupo">×</button></td></tr>').join('') ||
+        '<td class="la-td-acoes"><button type="button" class="btn btn-mini" data-la="abrir" data-id="' + i.l.id + '" title="Ficha da liderança">Ficha</button> ' +
+          '<button type="button" class="btn btn-mini" data-la="remover-grupo" data-id="' + i.l.id + '" data-chave="' + g.chave + '" title="Tirar do grupo">×</button></td></tr>').join('') ||
         '<tr><td colspan="6" class="vazio">Nenhuma liderança no grupo ainda. Adicione abaixo.</td></tr>') +
       '</tbody><tfoot><tr><td colspan="2">Total em ' + esc(ctx.nomeMun) + '</td><td class="num">' + fmtInt(base2024) + '</td><td></td><td class="num">' + fmtInt(g.total) + '</td><td></td></tr></tfoot></table></div>' +
-      '<form data-la="form-add" data-chave="' + g.chave + '" class="la-linha la-add">' +
+      '<form data-la="form-add" data-chave="' + g.chave + '" data-cand="' + c.id + '" class="la-linha la-add">' +
         '<select name="lideranca" required><option value="">— adicionar liderança de ' + esc(ctx.nomeMun) + ' —</option>' +
-        disponiveis.map((l) => '<option value="' + l.id + '" data-exp="' + expectativa2026(l) + '">' + esc(l.nome) + (l.partido ? ' (' + esc(l.partido) + ')' : '') + (l.origem === 'vereador2024' ? ' · ' + fmtInt(l.votos2024) + ' votos em 2024' : '') + (expectativa2026(l) ? ' · expectativa ' + fmtInt(expectativa2026(l)) : '') + '</option>').join('') +
+        disponiveis.map((l) => '<option value="' + l.id + '">' + esc(l.nome) + (l.partido ? ' (' + esc(l.partido) + ')' : '') + (l.origem === 'vereador2024' ? ' · ' + fmtInt(l.votos2024) + ' votos em 2024' : '') + (expectativa2026(l) ? ' · expectativa ' + fmtInt(expectativa2026(l)) : '') + '</option>').join('') +
         '</select><input name="estimativa" type="number" min="0" step="1" placeholder="estimativa (vazio = expectativa da liderança)"><button type="submit" class="btn btn-primario">Adicionar ao grupo</button>' +
-      '</form></section>';
-
+      '</form>';
     if (municipios.size > 1) {
       const porMun = new Map();
       for (const i of gTodos.itens) porMun.set(i.l.cd_mun, (porMun.get(i.l.cd_mun) || 0) + i.estimativa);
-      html += '<section class="painel"><div class="painel-cabecalho"><h2>Expectativa por município · ' + esc(c.nome) + '</h2></div>' +
+      html += '<div class="detalhe-sub">Expectativa por município · ' + esc(c.nome) + '</div>' +
         '<div class="tabela-scroll"><table class="la-tabela"><thead><tr><th>Município</th><th class="num">Lideranças</th><th class="num">Estimativa</th></tr></thead><tbody>' +
         Array.from(porMun.entries()).sort((a, b) => b[1] - a[1]).map(([cdm, total]) => '<tr><td>' + esc(nomeMunicipio(cdm)) + '</td><td class="num">' + gTodos.itens.filter((i) => i.l.cd_mun === cdm).length + '</td><td class="num">' + fmtInt(total) + '</td></tr>').join('') +
-        '</tbody><tfoot><tr><td>Total</td><td class="num">' + gTodos.itens.length + '</td><td class="num">' + fmtInt(gTodos.total) + '</td></tr></tfoot></table></div></section>';
+        '</tbody><tfoot><tr><td>Total</td><td class="num">' + gTodos.itens.length + '</td><td class="num">' + fmtInt(gTodos.total) + '</td></tr></tfoot></table></div>';
     }
     return html;
   }
@@ -618,7 +638,8 @@
     else if (acao === 'cargo26') { ui.cargo26 = alvo.dataset.valor; render(); }
     else if (acao === 'fechar-aviso') { ui.aviso = ''; render(); }
     else if (acao === 'novo-cand-grupo' || acao === 'novo-cand-form') { ui.novoCandidato = CARGOS_2026[4]; render(); const i = ctx.el.querySelector('.la-novo-cand input[name="nome"]'); if (i) i.focus(); }
-    else if (acao === 'sel-cand-est') { ui.candidato = alvo.dataset.id; render(); const t = ctx.el.querySelector('.la-cand-topo'); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    else if (acao === 'aba-est') { ui.abaEst = alvo.dataset.valor; ui.novoCandidato = false; render(); }
+    else if (acao === 'detalhar') { ui.candidato = ui.candidato === alvo.dataset.id ? '' : alvo.dataset.id; render(); }
     else if (acao === 'ver-grupo') { ui.candidato = alvo.dataset.id; if (ctx.irPara) ctx.irPara('estimativa'); else render(); }
     else if (acao === 'mesclar') {
       const m = dados.candidatos2026.find((c) => c.id === alvo.dataset.manual);
@@ -650,7 +671,12 @@
     if (!alvo) return;
     const acao = alvo.dataset.la;
     if (acao === 'importar' && alvo.files && alvo.files[0]) { importar(alvo.files[0]); alvo.value = ''; }
-    else if (acao === 'sel-grupo') { ui.candidato = alvo.value; render(); }
+    else if (acao === 'sel-grupo') {
+      ui.candidato = alvo.value;
+      const c = candidato2026(alvo.value);
+      if (c) { const aba = ABAS_EST.find((a) => a.cargos.includes(c.cargo)); if (aba) ui.abaEst = aba.id; }
+      render();
+    }
     else if (acao === 'estimativa') {
       const l = porId(alvo.dataset.id);
       if (l && l.apoio2026 && l.apoio2026[alvo.dataset.chave]) { l.apoio2026[alvo.dataset.chave].estimativa = parseInt(alvo.value, 10) || 0; salvar(); render(); }
@@ -696,7 +722,11 @@
       if (!l) return;
       const digitada = parseInt(f.get('estimativa'), 10);
       l.apoio2026 = l.apoio2026 || {};
-      l.apoio2026[form.dataset.chave] = { candidato_id: ui.candidato, estimativa: isNaN(digitada) ? expectativa2026(l) : digitada };
+      const atual = apoio(l, form.dataset.chave);
+      const destino = candidato2026(form.dataset.cand || ui.candidato);
+      if (atual && destino && atual.c.id !== destino.id &&
+          !confirm(l.nome + ' já apoia ' + atual.c.nome + ' para ' + atual.c.cargo + '. Uma liderança apoia um candidato por cargo. Mover para ' + destino.nome + '?')) return;
+      l.apoio2026[form.dataset.chave] = { candidato_id: form.dataset.cand || ui.candidato, estimativa: isNaN(digitada) ? expectativa2026(l) : digitada };
       salvar(); render();
     }
   }

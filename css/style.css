@@ -402,3 +402,9 @@ td .ponto-cor { display: inline-block; width: 10px; height: 10px; border-radius:
 .la-det .rotulo { font-size: 0.7rem; }
 .la-det .valor { font-size: 0.95rem; }
 body.la-modal-aberto { overflow: hidden; }
+.la-est-tabela td { padding: 10px; }
+.la-expandido > td { background: var(--painel-suave); padding: 14px 16px 16px; border-left: 3px solid var(--primaria); }
+.la-expandido .la-tabela th { background: transparent; }
+.la-cards-grupo { margin-bottom: 12px; }
+.la-cards-grupo .card { background: #fff; }
+.la-abas .contagem { margin-left: 6px; font-size: 0.78rem; opacity: 0.8; }
