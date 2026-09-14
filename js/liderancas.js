@@ -507,17 +507,16 @@
       card(fmtInt(g.total), 'Expectativa em ' + ctx.nomeMun, g.itens.length + ' lideranças no grupo') +
       card(fmtInt(base2024), 'Votos das lideranças em 2024', 'soma dos votos que tiveram em 2024 (referência)') +
       '</div>';
-    html += '<div class="tabela-scroll"><table class="la-tabela"><thead><tr><th class="pos">#</th><th>Liderança que apoia ' + esc(c.nome) + '</th><th class="num">Votos 2024</th><th class="num">Expectativa 2026</th><th class="num">Estimativa p/ ' + esc(c.nome) + '</th><th></th></tr></thead><tbody>' +
+    html += '<div class="tabela-scroll"><table class="la-tabela"><thead><tr><th class="pos">#</th><th>Liderança que apoia ' + esc(c.nome) + '</th><th class="num">Votos 2024</th><th class="num">Estimativa p/ ' + esc(c.nome) + '</th><th></th></tr></thead><tbody>' +
       (g.itens.map((i, idx) => '<tr><td class="pos">' + (idx + 1) + '</td>' +
         '<td class="texto"><span class="cand-linha">' + avatar(i.l.nome, i.l.foto, 30) + '<span><strong>' + esc(i.l.nome) + '</strong>' + (i.l.partido ? '<small class="dica"> · ' + esc(i.l.partido) + '</small>' : '') +
           (bairrosTexto(i.l) ? '<br><small class="dica">' + esc(bairrosTexto(i.l)) + '</small>' : '') + '</span></span></td>' +
         '<td class="num">' + votos24(i.l) + '</td>' +
-        '<td class="num">' + (expectativa2026(i.l) ? fmtInt(expectativa2026(i.l)) : '—') + '</td>' +
         '<td class="num"><input type="number" min="0" step="1" class="la-est" value="' + (i.estimativa || '') + '" data-la="estimativa" data-id="' + i.l.id + '" data-chave="' + g.chave + '"></td>' +
         '<td class="la-td-acoes"><button type="button" class="btn btn-mini" data-la="abrir" data-id="' + i.l.id + '" title="Ficha da liderança">Ficha</button> ' +
           '<button type="button" class="btn btn-mini" data-la="remover-grupo" data-id="' + i.l.id + '" data-chave="' + g.chave + '" title="Tirar do grupo">×</button></td></tr>').join('') ||
-        '<tr><td colspan="6" class="vazio">Nenhuma liderança no grupo ainda. Adicione abaixo.</td></tr>') +
-      '</tbody><tfoot><tr><td colspan="2">Total em ' + esc(ctx.nomeMun) + '</td><td class="num">' + fmtInt(base2024) + '</td><td></td><td class="num">' + fmtInt(g.total) + '</td><td></td></tr></tfoot></table></div>' +
+        '<tr><td colspan="5" class="vazio">Nenhuma liderança no grupo ainda. Adicione abaixo.</td></tr>') +
+      '</tbody><tfoot><tr><td colspan="2">Total em ' + esc(ctx.nomeMun) + '</td><td class="num">' + fmtInt(base2024) + '</td><td class="num">' + fmtInt(g.total) + '</td><td></td></tr></tfoot></table></div>' +
       '<form data-la="form-add" data-chave="' + g.chave + '" data-cand="' + c.id + '" class="la-linha la-add">' +
         '<select name="lideranca" required><option value="">— adicionar liderança de ' + esc(ctx.nomeMun) + ' —</option>' +
         disponiveis.map((l) => '<option value="' + l.id + '">' + esc(l.nome) + (l.partido ? ' (' + esc(l.partido) + ')' : '') + (foiCandidato2024(l) ? ' · ' + fmtInt(l.votos2024) + ' votos em 2024' : '') + (expectativa2026(l) ? ' · expectativa ' + fmtInt(expectativa2026(l)) : '') + '</option>').join('') +
