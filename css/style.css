@@ -320,3 +320,15 @@ td .ponto-cor { display: inline-block; width: 10px; height: 10px; border-radius:
 .nav-sub .nav-item.ativo { background: var(--primaria-suave); border-color: transparent; color: var(--primaria); box-shadow: none; }
 .nav-sub .nav-item.ativo .contagem { color: var(--primaria); }
 .lateral .busca { margin-top: 4px; }
+
+/* ---------- marcadores do mapa: mini gráfico de barras (3 mais votados) ---------- */
+.marcador-barras { background: transparent; border: 0; }
+.mini-barras { background: rgba(255, 255, 255, 0.94); border: 1px solid var(--borda-forte); border-radius: 10px; padding: 4px 5px 3px; box-shadow: 0 1px 4px rgba(17, 24, 39, 0.28); cursor: pointer; }
+.mini-barras:hover { border-color: var(--primaria); }
+.mini-barras.selecionado { border: 2px solid #b45309; box-shadow: 0 0 0 2px rgba(180, 83, 9, 0.25); }
+.mini-barras .cols { display: flex; align-items: flex-end; justify-content: center; gap: 4px; }
+.mini-barras .col { display: flex; flex-direction: column; align-items: center; width: 32px; }
+.mini-barras .col .avatar { width: 26px; height: 26px; border: 1.5px solid #fff; box-shadow: 0 0 0 1px var(--borda-forte); font-size: 0.6rem; }
+.mini-barras .pct { font-size: 9.5px; font-weight: 700; line-height: 1; margin: 3px 0; color: var(--texto); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mini-barras .barra { display: block; width: 22px; border-radius: 3px 3px 0 0; }
+.mini-barras .rotulo-b { font-size: 9.5px; line-height: 1.2; text-align: center; color: var(--texto-suave); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 112px; }

@@ -583,13 +583,38 @@
     return html;
   }
 
+  /** Marcador do mapa: mini gráfico de barras com os 3 mais votados do bairro (foto, % e barra na cor do partido). */
+  function htmlBarras(r, cores, cand, selecionado, nome) {
+    const ALTURA_BARRA = 44;
+    const itens = cand
+      ? [{ numero: cand.numero, nome: cand.nome, partido: cand.partido, votos: r.votosCand }]
+      : r.ranking.slice(0, 3);
+    const maxVotos = Math.max(1, ...itens.map((i) => i.votos));
+    const cols = itens.map((i) => {
+      const p = pct(i.votos, r.validos);
+      // com candidato selecionado a altura é a fatia dele nos válidos; no ranking, relativa ao 1º do bairro
+      const h = Math.max(4, Math.round(ALTURA_BARRA * (cand ? p / 100 : i.votos / maxVotos)));
+      return '<div class="col" title="' + esc(i.nome) + ' (' + esc(i.partido) + ') · ' + fmtInt(i.votos) + ' votos">' +
+        avatar(i.nome, i.numero, 26) + '<span class="pct">' + fmtPct(p) + '</span>' +
+        '<span class="barra" style="height:' + h + 'px;background:' + cores.cor(i.partido) + '"></span></div>';
+    }).join('');
+    const largura = 12 + 36 * Math.max(1, itens.length);
+    const altura = 26 + 14 + ALTURA_BARRA + 16 + 10;
+    return {
+      html: '<div class="mini-barras' + (selecionado ? ' selecionado' : '') + '"><div class="cols">' + cols + '</div><div class="rotulo-b">' + esc(titulo(nome)) + '</div></div>',
+      largura, altura,
+    };
+  }
+
   function renderLegendaMapa(cores, cand) {
     const itens = cand
-      ? [{ rotulo: cand.nome + ' (' + cand.partido + ')', cor: cores.cor(cand.partido) }, { rotulo: 'Demais votos válidos', cor: COR_OUTROS }]
+      ? [{ rotulo: cand.nome + ' (' + cand.partido + ')', cor: cores.cor(cand.partido) }]
       : cores.lista.map((p) => ({ rotulo: p.sigla, cor: p.cor }));
     el.legendaMapa.innerHTML = itens.map((i) => '<span class="legenda-item"><span class="amostra" style="background:' + i.cor + '"></span>' + esc(i.rotulo) + '</span>').join('') +
       '<span class="legenda-item"><span class="amostra anel"></span>bairro selecionado</span>' +
-      '<span class="legenda-item legenda-tam"><span class="circulo" style="width:10px;height:10px"></span><span class="circulo" style="width:18px;height:18px"></span>tamanho = ' + (cand ? 'votos do candidato' : 'votos válidos') + ' no bairro</span>';
+      '<span class="legenda-nota">' + (cand
+        ? 'Cada barra mostra a fatia do candidato nos votos válidos do bairro (altura = %).'
+        : 'Cada quadro mostra os 3 mais votados do bairro: foto, % dos votos válidos e barra na cor do partido (altura relativa ao 1º colocado do bairro).') + '</span>';
   }
 
   // ---------- cartões de resumo ----------
@@ -780,8 +805,8 @@
     const metrica = cand ? 'votosCand' : 'validos';
     el.tituloMapa.textContent = cand ? cand.nome + ' — votos por bairro' : 'Votos por bairro · ' + estado.cargo;
     el.dicaMapa.textContent = cand
-      ? 'Cada pizza mostra a fatia do candidato nos votos válidos do bairro; o tamanho é proporcional aos votos dele. Clique para ver os detalhes.'
-      : 'Cada pizza divide os votos válidos do bairro entre todos os candidatos, com a cor do partido; o tamanho é proporcional aos votos válidos. Clique para ver os detalhes.';
+      ? 'Cada bairro mostra a barra do candidato com a foto e a porcentagem dos votos válidos. Clique para ver os detalhes.'
+      : 'Cada bairro mostra os 3 mais votados, com foto, porcentagem dos votos válidos e barra na cor do partido. Clique para ver os detalhes.';
     renderLegendaMapa(cores, cand);
 
     const semGeo = !db.temBairros || geo.size === 0;
@@ -806,24 +831,23 @@
       const g = geo.get(nome);
       if (!g) continue;
       const valor = r[metrica];
-      const raio = Math.round(9 + 26 * Math.sqrt(valor / maximo));
       const selecionado = nome === estado.bairro;
-      const diametro = 2 * raio;
-      const fatias = fatiasVotos(r.ranking, r.legendas, r.validos, cores, cand, r.votosCand);
+      const barras = htmlBarras(r, cores, cand, selecionado, nome);
       const marcador = L.marker([g.lat, g.lng], {
         icon: L.divIcon({
-          html: svgPizza(fatias, diametro, { anel: selecionado, titulo: titulo(nome), traco: fatias.length > 12 ? 0 : 1.2 }),
-          className: 'pizza-marcador',
-          iconSize: [diametro, diametro],
-          iconAnchor: [raio, raio],
+          html: barras.html,
+          className: 'marcador-barras',
+          iconSize: [barras.largura, barras.altura],
+          iconAnchor: [Math.round(barras.largura / 2), Math.round(barras.altura / 2)],
         }),
-        zIndexOffset: selecionado ? 1000 : Math.round(200 - raio),
+        zIndexOffset: selecionado ? 1000 : Math.round(100 * valor / maximo),
         keyboard: false,
       });
+      const top3 = r.ranking.slice(0, 3);
       const linha2 = cand
         ? fmtInt(r.votosCand) + ' votos · ' + fmtPct(pct(r.votosCand, r.validos)) + ' dos válidos' + (r.posicaoCand ? ' · ' + r.posicaoCand + 'º no bairro' : '')
-        : fatias.slice(0, 3).filter((f) => f.valor > 0).map((f) => f.rotulo + ' ' + fmtPct(pct(f.valor, r.validos))).join(' · ') + '<br>' + fmtInt(r.validos) + ' votos válidos';
-      marcador.bindTooltip('<b>' + esc(titulo(nome)) + '</b>' + linha2, { className: 'rotulo-bairro', direction: 'top', offset: [0, -raio], opacity: 1 });
+        : top3.map((c) => esc(c.nome) + ' (' + esc(c.partido) + ') ' + fmtPct(pct(c.votos, r.validos))).join(' · ') + '<br>' + fmtInt(r.validos) + ' votos válidos' + (r.aptos ? ' · ' + fmtInt(r.aptos) + ' aptos' : '');
+      marcador.bindTooltip('<b>' + esc(titulo(nome)) + '</b>' + linha2, { className: 'rotulo-bairro', direction: 'top', offset: [0, -Math.round(barras.altura / 2)], opacity: 1 });
       marcador.on('click', () => executarAcao('bairro', nome === estado.bairro ? '' : nome));
       marcador.addTo(mapa.camada);
       mapa.marcadores.set(nome, marcador);
