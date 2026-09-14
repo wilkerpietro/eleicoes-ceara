@@ -321,28 +321,18 @@
 
   // ---------- render ----------
   const semMunicipio = () => !ctx.cdMun || ctx.cdMun === 'todos';
-  const TITULOS = { liderancas: 'Lideranças', estimativa: 'Estimativa de votos 2026', candidatos: 'Candidatos 2026' };
 
   function render() {
     if (!ctx || !dados) return;
     const tela = ctx.tela || 'liderancas';
     const lista = semMunicipio() ? [] : doMunicipio(ctx.cdMun);
-    const acoes = '<div class="la-acoes">' +
-      (tela === 'liderancas' && !semMunicipio() ? '<button type="button" class="btn btn-primario" data-la="nova">+ Nova liderança</button>' : '') +
-      '<button type="button" class="btn" data-la="exportar" title="Baixa um arquivo JSON com todo o cadastro">Exportar</button>' +
-      '<label class="btn">Importar<input type="file" accept="application/json,.json" data-la="importar" hidden></label></div>';
-    const dica = tela === 'candidatos'
-      ? candidatos2026().length + ' candidatos · cadastro do TSE (Eleições Gerais 2026, Ceará e Presidência)'
-      : semMunicipio() ? 'Escolha um município na barra lateral.' : lista.length + ' lideranças em ' + ctx.nomeMun + ' · dados salvos neste navegador';
-    const cab = '<section class="painel la-cabecalho"><div class="la-barra">' +
-      '<div class="painel-cabecalho"><h2>' + TITULOS[tela] + (tela !== 'candidatos' && !semMunicipio() ? ' · ' + esc(ctx.nomeMun) : '') + '</h2><span class="dica">' + esc(dica) + '</span></div>' + acoes + '</div></section>';
     const aviso = ui.aviso ? '<section class="painel la-aviso"><span>' + esc(ui.aviso) + '</span><button type="button" class="btn btn-mini" data-la="fechar-aviso">OK</button></section>' : '';
     let corpo;
     if (tela === 'candidatos') corpo = renderCandidatos2026();
     else if (semMunicipio()) corpo = '<section class="painel"><div class="vazio">Escolha um município na barra lateral para ' + (tela === 'estimativa' ? 'ver a estimativa de votos' : 'mapear as lideranças') + ' dele.</div></section>';
     else if (tela === 'estimativa') corpo = renderEstimativa(ctx.cdMun, lista);
     else corpo = renderLiderancas(ctx.cdMun, lista);
-    ctx.el.innerHTML = cab + aviso + corpo + renderModal();
+    ctx.el.innerHTML = aviso + corpo + renderModal();
     document.body.classList.toggle('la-modal-aberto', !!ui.modal);
   }
 
@@ -353,7 +343,8 @@
       .slice().sort((a, b) => (b.votos2024 || 0) - (a.votos2024 || 0) || a.nome.localeCompare(b.nome, 'pt-BR'));
     const total24 = filtradas.reduce((s, l) => s + (l.votos2024 || 0), 0);
     const total26 = filtradas.reduce((s, l) => s + expectativa2026(l), 0);
-    return '<section class="painel"><div class="painel-cabecalho"><h2>Cadastro</h2><span class="dica">Clique em "Detalhes" para ver apoios de 2022, 2024 e 2026 e editar.</span>' +
+    return '<section class="painel"><div class="painel-cabecalho la-cab-lista"><h2>Cadastro</h2>' +
+      '<button type="button" class="btn btn-primario" data-la="nova">+ Nova liderança</button>' +
       '<input type="search" class="la-busca" placeholder="Buscar liderança" value="' + esc(ui.busca) + '" data-la="busca"></div>' +
       '<div class="tabela-scroll"><table class="la-tabela la-limpa"><thead><tr><th>Liderança</th><th class="num">Votos em 2024</th><th class="num">Expectativa 2026</th><th></th></tr></thead><tbody>' +
       (filtradas.map((l) => '<tr class="clicavel" data-la="abrir" data-id="' + l.id + '">' +
@@ -363,7 +354,10 @@
         '<td class="num">' + (expectativa2026(l) ? fmtInt(expectativa2026(l)) : '<span class="dica">—</span>') + '</td>' +
         '<td class="la-td-acoes"><button type="button" class="btn btn-mini" data-la="abrir" data-id="' + l.id + '">Detalhes</button></td></tr>').join('') ||
         '<tr><td colspan="4" class="vazio">Nenhuma liderança' + (q ? ' encontrada para "' + esc(ui.busca) + '"' : ' cadastrada') + '.</td></tr>') +
-      '</tbody><tfoot><tr><td>' + filtradas.length + ' lideranças</td><td class="num">' + fmtInt(total24) + '</td><td class="num">' + fmtInt(total26) + '</td><td></td></tr></tfoot></table></div></section>';
+      '</tbody><tfoot><tr><td>' + filtradas.length + ' lideranças</td><td class="num">' + fmtInt(total24) + '</td><td class="num">' + fmtInt(total26) + '</td><td></td></tr></tfoot></table></div>' +
+      '<div class="la-rodape-acoes"><span class="dica">Dados salvos neste navegador.</span>' +
+      '<button type="button" class="btn btn-mini" data-la="exportar" title="Baixa um arquivo JSON com todo o cadastro">Exportar</button>' +
+      '<label class="btn btn-mini">Importar<input type="file" accept="application/json,.json" data-la="importar" hidden></label></div></section>';
   }
 
   // ---------- popup de detalhes / edição ----------
@@ -505,8 +499,8 @@
     const disponiveis = lista.filter((l) => !g.itens.some((i) => i.l.id === l.id)).sort((a, b) => (b.votos2024 || 0) - (a.votos2024 || 0));
     const base2024 = g.itens.reduce((s, i) => s + (i.l.votos2024 || 0), 0);
     let html = '<div class="cards la-cards-grupo">' +
-      card(fmtInt(g.total), 'Expectativa em ' + ctx.nomeMun, g.itens.length + ' lideranças no grupo') +
-      card(fmtInt(base2024), 'Votos das lideranças em 2024', 'soma dos votos que tiveram em 2024 (referência)') +
+      card(fmtInt(g.total), 'Expectativa em ' + ctx.nomeMun) +
+      card(fmtInt(base2024), 'Votos das lideranças em 2024') +
       '</div>';
     html += '<div class="tabela-scroll"><table class="la-tabela"><thead><tr><th class="pos">#</th><th>Liderança que apoia ' + esc(c.nome) + '</th><th class="num">Votos 2024</th><th class="num">Estimativa p/ ' + esc(c.nome) + '</th><th></th></tr></thead><tbody>' +
       (g.itens.map((i, idx) => '<tr><td class="pos">' + (idx + 1) + '</td>' +

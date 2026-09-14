@@ -424,3 +424,7 @@ body.la-modal-aberto { overflow: hidden; }
   .card-heroi { flex-wrap: wrap; }
   .heroi-votos { border-left: 0; padding-left: 0; text-align: left; width: 100%; }
 }
+.la-cab-lista { display: flex; align-items: center; gap: 12px; }
+.la-cab-lista h2 { margin-right: 4px; }
+.la-rodape-acoes { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.la-rodape-acoes .dica { margin-right: auto; }
