@@ -383,3 +383,22 @@ td .ponto-cor { display: inline-block; width: 10px; height: 10px; border-radius:
 .la-dup-opcao { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; }
 .la-dup-opcao + .la-dup-opcao { border-top: 1px dashed var(--borda); }
 .la-aviso { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #dcf5e6; border-color: #9fd8b6; color: #146c3a; font-size: 0.9rem; }
+
+/* ---------- lideranças: lista limpa e popup ---------- */
+.la-limpa td { padding: 10px 10px; }
+.la-limpa .cand-linha > span:last-child { display: block; }
+.la-limpa .la-bairros { display: block; font-size: 0.82rem; color: var(--texto-suave); white-space: normal; }
+.la-limpa td.num { font-size: 1rem; font-weight: 600; }
+.la-modal-fundo { position: fixed; inset: 0; background: rgba(17, 24, 39, 0.45); z-index: 5000; display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto; }
+.la-modal { position: relative; background: #fff; border-radius: 16px; box-shadow: 0 20px 60px rgba(17, 24, 39, 0.3); width: min(880px, 100%); padding: 22px 24px 20px; }
+.la-modal-fechar { position: absolute; top: 10px; right: 12px; width: 32px; height: 32px; border: 0; border-radius: 50%; background: var(--painel-suave); font-size: 1.2rem; line-height: 1; color: var(--texto-suave); }
+.la-modal-fechar:hover { background: #e3e5e8; color: var(--texto); }
+.la-modal-topo { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; padding-right: 36px; }
+.la-modal-topo h2 { margin: 0; font-size: 1.15rem; }
+.la-modal-nome { font-size: 1.2rem; }
+.la-modal .avatar { font-size: 1.1rem; }
+.la-det-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.la-det { border: 1px solid var(--borda); border-radius: var(--raio-p); background: var(--painel-suave); padding: 9px 12px; display: flex; flex-direction: column; gap: 3px; }
+.la-det .rotulo { font-size: 0.7rem; }
+.la-det .valor { font-size: 0.95rem; }
+body.la-modal-aberto { overflow: hidden; }

@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Eleições Paraipaba · Votação por bairro e seção</title>
-  <meta name="description" content="Consulta de votos por bairro, local de votação e seção eleitoral no município de Paraipaba-CE.">
+  <meta name="description" content="Consulta de votos por município, bairro, local de votação e seção eleitoral no Ceará, e mapeamento de lideranças para 2026.">
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <link rel="stylesheet" href="css/style.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
@@ -55,8 +56,17 @@
           <button type="button" class="nav-item" data-tela="mapa">
             <svg class="icone"><use href="#i-map"/></svg><span>Mapa por bairro</span>
           </button>
+        </div>
+        <div class="nav-titulo">Eleições 2026</div>
+        <div id="nav-2026" class="nav-lista">
           <button type="button" class="nav-item" data-tela="liderancas">
             <svg class="icone"><use href="#i-users"/></svg><span>Lideranças</span>
+          </button>
+          <button type="button" class="nav-item" data-tela="estimativa">
+            <svg class="icone"><use href="#i-trophy"/></svg><span>Estimativa</span>
+          </button>
+          <button type="button" class="nav-item" data-tela="candidatos26">
+            <svg class="icone"><use href="#i-flag"/></svg><span>Candidatos 2026</span>
           </button>
         </div>
       </nav>

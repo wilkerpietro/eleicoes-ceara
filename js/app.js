@@ -7,6 +7,9 @@
   const ORDEM_CARGOS = ['Presidente', 'Governador', 'Senador', 'Deputado Federal', 'Deputado Estadual', 'Prefeito', 'Vereador'];
   const ICONE_CARGO = { Presidente: 'i-flag', Governador: 'i-building', Senador: 'i-users', 'Deputado Federal': 'i-users', 'Deputado Estadual': 'i-users', Prefeito: 'i-building', Vereador: 'i-users' };
   const REPO_URL = 'https://github.com/wilkerpietro/eleicoes-paraipaba';
+  const TELAS = ['tabela', 'mapa', 'liderancas', 'estimativa', 'candidatos26'];
+  const TELAS_2026 = { liderancas: 'liderancas', estimativa: 'estimativa', candidatos26: 'candidatos' }; // tela do app -> tela do módulo
+  const NOME_TELA = { mapa: 'Mapa', liderancas: 'Lideranças', estimativa: 'Estimativa 2026', candidatos26: 'Candidatos 2026' };
   const NOME_POR = { bairro: 'bairro', local: 'local de votação', secao: 'seção' };
   const NOME_POR_CAB = { bairro: 'Bairro', local: 'Local de votação', secao: 'Seção' };
   const TILES_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -116,7 +119,7 @@
     estado.bairro = p.get('bairro') || '';
     estado.por = ['bairro', 'local', 'secao'].includes(p.get('por')) ? p.get('por') : 'bairro';
     estado.busca = p.get('q') || '';
-    estado.tela = ['mapa', 'liderancas'].includes(p.get('tela')) ? p.get('tela') : 'tabela';
+    estado.tela = TELAS.includes(p.get('tela')) ? p.get('tela') : 'tabela';
   }
 
   function hashAtual() {
@@ -401,7 +404,7 @@
     });
     if (!db.temBairros && estado.por === 'bairro') estado.por = 'local';
     if (noEstado()) estado.por = 'bairro';
-    el.navTelas.querySelectorAll('[data-tela]').forEach((b) => b.classList.toggle('ativo', b.dataset.tela === estado.tela));
+    document.querySelectorAll('.lateral [data-tela]').forEach((b) => b.classList.toggle('ativo', b.dataset.tela === estado.tela));
 
     if (estado.bairro && !db.bairros.includes(estado.bairro)) estado.bairro = '';
     el.bairro.innerHTML = opcao('', 'Todo o município', !estado.bairro) +
@@ -423,8 +426,8 @@
   function renderTrilha() {
     const partes = [{ texto: db.cfg.nome, acao: 'inicio' }, { texto: nomeMun(), acao: 'inicio' }];
     if (estado.tela === 'mapa') partes.push({ texto: 'Mapa', acao: 'tela', valor: 'mapa' });
-    if (estado.tela === 'liderancas') {
-      partes.push({ texto: 'Lideranças', acao: 'tela', valor: 'liderancas' });
+    if (estado.tela in TELAS_2026) {
+      partes.push({ texto: NOME_TELA[estado.tela], acao: 'tela', valor: estado.tela });
       el.trilha.innerHTML = partes.map((p, i) => (i ? '<span class="sep">›</span>' : '') + (i === partes.length - 1
         ? '<span class="crumb atual">' + esc(p.texto) + '</span>'
         : '<button type="button" class="crumb" data-acao="' + p.acao + '" data-valor="' + esc(p.valor || '') + '">' + esc(p.texto) + '</button>')).join('');
@@ -940,15 +943,20 @@
     renderControles();
     renderTrilha();
     const noMapa = estado.tela === 'mapa';
-    const naLideranca = estado.tela === 'liderancas';
+    const naLideranca = estado.tela in TELAS_2026;
     el.gradeTabela.hidden = noMapa || naLideranca;
     el.gradeMapa.hidden = !noMapa;
     el.telaLiderancas.hidden = !naLideranca;
     el.filtros.hidden = naLideranca;
     el.resumo.hidden = naLideranca;
     if (naLideranca) {
-      if (window.Liderancas) Liderancas.mostrar({ el: el.telaLiderancas, cdMun: estado.mun, nomeMun: nomeMun(), municipios: db.municipios, candidatos2026: manifesto.candidatos2026, fotos2026: manifesto.fotos2026 });
-      else el.telaLiderancas.innerHTML = '<section class="painel"><div class="vazio">Módulo de lideranças não carregado.</div></section>';
+      if (window.Liderancas) {
+        Liderancas.mostrar({
+          el: el.telaLiderancas, tela: TELAS_2026[estado.tela], cdMun: estado.mun, nomeMun: nomeMun(), municipios: db.municipios,
+          candidatos2026: manifesto.candidatos2026, fotos2026: manifesto.fotos2026,
+          irPara: (t) => { const app = Object.keys(TELAS_2026).find((k) => TELAS_2026[k] === t); if (app) executarAcao('tela', app); },
+        });
+      } else el.telaLiderancas.innerHTML = '<section class="painel"><div class="vazio">Módulo de lideranças não carregado.</div></section>';
     }
     else if (noMapa) renderMapa();
     else if (estado.cand) renderCandidato();
@@ -975,7 +983,7 @@
   function executarAcao(acao, valor) {
     if (acao === 'vermais') { expandido[valor] = !expandido[valor]; render(false); return; }
     if (acao === 'inicio') { estado.cand = ''; estado.bairro = ''; estado.busca = ''; estado.tela = 'tabela'; }
-    else if (acao === 'tela') { estado.tela = ['mapa', 'liderancas'].includes(valor) ? valor : 'tabela'; }
+    else if (acao === 'tela') { estado.tela = TELAS.includes(valor) ? valor : 'tabela'; }
     else if (acao === 'cargo') { estado.cand = ''; estado.busca = ''; }
     else if (acao === 'ranking') { estado.cand = ''; }
     else if (acao === 'cand') { estado.cand = valor; estado.busca = ''; }
@@ -1003,7 +1011,7 @@
     const mun = (estado.mun === TODOS && cfg && !cfg.agregado_estado) ? manifesto.municipio_padrao : estado.mun;
     trocarEleicao(eleicao.dataset.eleicao, mun);
   });
-  el.navTelas.addEventListener('click', (ev) => {
+  document.querySelector('.lateral').addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-tela]');
     if (b) executarAcao('tela', b.dataset.tela);
   });
