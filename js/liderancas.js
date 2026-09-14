@@ -102,15 +102,61 @@
   const candidato2026 = (id) => candidatos2026().find((c) => c.id === id) || null;
   const rotuloCand = (c) => c.nome + (c.partido ? ' (' + c.partido + ')' : '') + (c.numero ? ' · ' + c.numero : '');
 
-  /** Candidatos manuais que parecem repetir alguém do cadastro do TSE (mesmo nome, ignorando acentos e caixa). */
+  const chaveNome = (s) => normalizar(s).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  /** Distância de edição (Levenshtein) entre duas cadeias curtas. */
+  function distancia(a, b) {
+    if (a === b) return 0;
+    const m = a.length; const n = b.length;
+    if (!m) return n; if (!n) return m;
+    let ant = Array.from({ length: n + 1 }, (_, j) => j);
+    for (let i = 1; i <= m; i++) {
+      const cur = [i];
+      for (let j = 1; j <= n; j++) cur[j] = Math.min(ant[j] + 1, cur[j - 1] + 1, ant[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      ant = cur;
+    }
+    return ant[n];
+  }
+
+  /** Nomes manuais que sabidamente correspondem a candidatos do TSE (unificados automaticamente ao abrir). */
+  const APELIDOS_TSE = {
+    'daniel oliveira': '60002542461',   // DANNIEL OLIVEIRA (MDB, Dep. Estadual)
+    'eliseu monteiro': '60002536670',   // ELIZEU MONTEIRO (PSB, Dep. Estadual)
+    'emanoel acrisio': '60002532983',   // EMANUEL ACRIZIO (SOLIDARIEDADE, Dep. Federal)
+    'yury do paredao': '60002542442',   // YURY DO PAREDÃO (MDB, Dep. Federal)
+  };
+
+  /** Une automaticamente os manuais da tabela de apelidos ao candidato do TSE correspondente. */
+  function unificarConhecidos() {
+    const feitos = [];
+    for (const m of dados.candidatos2026.slice()) {
+      const sq = APELIDOS_TSE[chaveNome(m.nome)];
+      if (!sq) continue;
+      const t = candidato2026('tse:' + sq);
+      if (!t) continue;
+      const n = mesclar(m.id, t.id);
+      feitos.push(m.nome + ' → ' + t.nome + ' (' + t.cargo + ', ' + t.partido + ')' + (n ? ', ' + n + ' liderança(s)' : ''));
+    }
+    return feitos;
+  }
+
+  /** Candidatos manuais que parecem repetir alguém do cadastro do TSE: nome igual (ignorando acentos e caixa),
+   *  contido no outro, ou muito parecido (até 2 letras de diferença: Daniel/Danniel, Eliseu/Elizeu, Emanoel/Emanuel). */
   function duplicados() {
     const tse = tse2026 || [];
-    const chaveNome = (s) => normalizar(s).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
     return dados.candidatos2026.map((m) => {
       const n = chaveNome(m.nome);
       if (!n) return null;
       const iguais = tse.filter((c) => chaveNome(c.nome) === n || chaveNome(c.nomeCompleto) === n);
-      const parecidos = iguais.length ? [] : tse.filter((c) => { const cn = chaveNome(c.nome); return n.length >= 6 && (cn.includes(n) || n.includes(cn)); });
+      let parecidos = [];
+      if (!iguais.length) {
+        parecidos = tse.filter((c) => {
+          const cn = chaveNome(c.nome);
+          if (n.length >= 6 && (cn.includes(n) || n.includes(cn))) return true;
+          const d = distancia(n, cn);
+          return d <= 2 || d <= Math.floor(Math.max(n.length, cn.length) * 0.15);
+        });
+      }
       const lista = iguais.length ? iguais : parecidos;
       return lista.length ? { manual: Object.assign({ origem: 'manual' }, m), tse: lista, exato: iguais.length > 0 } : null;
     }).filter(Boolean);
@@ -243,12 +289,13 @@
           '<label class="btn">Importar<input type="file" accept="application/json,.json" data-la="importar" hidden></label>' +
         '</div>' +
       '</div></section>';
+    const aviso = ui.aviso ? '<section class="painel la-aviso"><span>' + esc(ui.aviso) + '</span><button type="button" class="btn btn-mini" data-la="fechar-aviso">OK</button></section>' : '';
     let corpo;
     if (ui.aba === 'candidatos') corpo = renderCandidatos2026();
     else if (semMun) corpo = '<section class="painel"><div class="vazio">Escolha um município na barra lateral para mapear as lideranças dele. A aba "Candidatos 2026" funciona sem município.</div></section>';
     else if (ui.aba === 'grupos') corpo = renderGrupos(ctx.cdMun, lista);
     else corpo = renderLiderancas(ctx.cdMun, lista);
-    raiz.innerHTML = cab + corpo;
+    raiz.innerHTML = cab + aviso + corpo;
   }
 
   function renderLiderancas(cd, lista) {
@@ -486,6 +533,7 @@
     const acao = alvo.dataset.la;
     if (acao === 'aba') { ui.aba = alvo.dataset.valor; ui.editando = null; ui.novoCandidato = false; render(); }
     else if (acao === 'cargo26') { ui.cargo26 = alvo.dataset.valor; render(); }
+    else if (acao === 'fechar-aviso') { ui.aviso = ''; render(); }
     else if (acao === 'nova') { ui.aba = 'liderancas'; ui.editando = 'nova'; render(); const i = ctx.el.querySelector('.la-form input[name="nome"]'); if (i) i.focus(); }
     else if (acao === 'editar') { ui.aba = 'liderancas'; ui.editando = alvo.dataset.id; render(); const f = ctx.el.querySelector('.la-form'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
     else if (acao === 'cancelar') { ui.editando = null; ui.novoCandidato = false; render(); }
@@ -594,6 +642,8 @@
     ligarEventos(ctx.el);
     ctx.el.innerHTML = '<section class="painel"><div class="vazio">Carregando lideranças…</div></section>';
     await Promise.all([carregar(), carregarTse2026()]);
+    const unificados = unificarConhecidos();
+    if (unificados.length) ui.aviso = 'Unificados com o cadastro do TSE: ' + unificados.join('; ') + '.';
     if (ctx.cdMun && ctx.cdMun !== 'todos') {
       await referencias(ctx.cdMun);
       await importarVereadores(ctx.cdMun);

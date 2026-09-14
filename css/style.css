@@ -382,3 +382,4 @@ td .ponto-cor { display: inline-block; width: 10px; height: 10px; border-radius:
 .la-dups { border-color: #f3d9a4; }
 .la-dup-opcao { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; }
 .la-dup-opcao + .la-dup-opcao { border-top: 1px dashed var(--borda); }
+.la-aviso { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #dcf5e6; border-color: #9fd8b6; color: #146c3a; font-size: 0.9rem; }
