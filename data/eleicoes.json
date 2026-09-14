@@ -8,6 +8,8 @@
       "data": "2022-10-02",
       "secoes": "data/2022/secoes.csv",
       "votos": "data/2022/votos.csv",
+      "candidatos": "data/2022/candidatos.csv",
+      "fotos": "data/2022/fotos/",
       "fonte": "TRE-CE / TSE — Resultado por seção (boletins de urna), dados gerados em 22/10/2022"
     }
   ]

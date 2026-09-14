@@ -11,6 +11,7 @@ Site estático, sem dependências: HTML, CSS e JavaScript puro lendo os CSVs da 
 - **Modo candidato**: votos do candidato agrupados por bairro, local de votação ou seção, com % dos votos válidos no grupo, % do total do candidato, válidos e aptos.
 - Navegação por clique: candidato no ranking abre a distribuição; bairro na tabela abre as seções daquele bairro.
 - Estado na URL (`#cargo=...&cand=...&bairro=...`) para compartilhar consultas.
+- Foto oficial, nome completo, ocupação e situação (Eleito, Suplente, 2º turno) de cada candidato, a partir do cadastro do TSE.
 
 ## Mapa por bairro (etapa 2)
 
@@ -50,6 +51,8 @@ data/eleicoes.json    manifesto das eleições disponíveis
 data/bairros.json     coordenadas (lat/lng) de cada bairro, usadas pelo mapa
 data/2022/secoes.csv  seções: zona, seção, local, endereço, bairro, aptos, seções agregadas
 data/2022/votos.csv   votos por seção: cargo, número, nome, votos, partido, coligação
+data/2022/candidatos.csv  cadastro dos candidatos com votos: nome completo, situação, gênero, ocupação, foto
+data/2022/fotos/      fotos oficiais dos candidatos (TSE), nomeadas pelo SQ_CANDIDATO
 data/raw/             arquivos originais do TRE-CE/TSE
 ```
 
@@ -68,6 +71,14 @@ zona;secao;cargo;numero;nome;votos;partido;coligacao
 ```
 
 Linhas com nome `BRANCOS`, `NULOS` e `LEGENDA <partido>` são tratadas como brancos, nulos e votos de legenda. Votos válidos = nominais + legenda.
+
+`data/<ano>/candidatos.csv` (opcional, cruzado com os votos por cargo + número):
+
+```
+cargo;numero;sq;nome;nome_urna;partido;situacao;genero;ocupacao;foto
+```
+
+Gerado a partir do "consulta_cand" do TSE, mantendo só campos públicos não sensíveis (sem CPF, e-mail, título ou data de nascimento) e só os candidatos com votos no município. Em caso de substituição de candidato (mesmo número), fica a candidatura APTA com situação de totalização definida. A coluna `foto` aponta para `data/<ano>/fotos/<SQ_CANDIDATO>.jpg`, copiada dos pacotes `foto_cand<ano>_<UF>_div` do TSE.
 
 ### Origem dos dados de 2022
 

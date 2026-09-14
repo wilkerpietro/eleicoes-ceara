@@ -148,7 +148,19 @@
     el.status.textContent = 'Carregando ' + cfg.nome + '…';
     el.status.classList.remove('erro');
 
-    const [secoesCsv, votosCsv] = await Promise.all([Csv.carregarCsv(cfg.secoes), Csv.carregarCsv(cfg.votos)]);
+    const [secoesCsv, votosCsv, cadastroCsv] = await Promise.all([
+      Csv.carregarCsv(cfg.secoes),
+      Csv.carregarCsv(cfg.votos),
+      cfg.candidatos ? Csv.carregarCsv(cfg.candidatos).catch((e) => { console.warn('Cadastro de candidatos indisponível:', e); return []; }) : Promise.resolve([]),
+    ]);
+    // cadastro (nome completo, situação, foto) indexado por cargo|numero
+    const cadastro = new Map();
+    for (const c of cadastroCsv) {
+      cadastro.set(c.cargo + '|' + c.numero, {
+        sq: c.sq, nome: c.nome, nome_urna: c.nome_urna, partido: c.partido, situacao: c.situacao || '',
+        genero: c.genero || '', ocupacao: c.ocupacao || '', foto: c.foto ? (cfg.fotos || '') + c.foto : '',
+      });
+    }
 
     const secoes = new Map();
     for (const s of secoesCsv) {
@@ -182,7 +194,7 @@
       if (v.tipo !== 'nominal') continue;
       if (!candidatos.has(v.cargo)) candidatos.set(v.cargo, new Map());
       const m = candidatos.get(v.cargo);
-      if (!m.has(v.numero)) m.set(v.numero, { numero: v.numero, nome: v.nome, partido: v.partido, coligacao: v.coligacao, total: 0 });
+      if (!m.has(v.numero)) m.set(v.numero, { numero: v.numero, nome: v.nome, partido: v.partido, coligacao: v.coligacao, total: 0, cadastro: cadastro.get(v.cargo + '|' + v.numero) || null });
       m.get(v.numero).total += v.votos;
     }
 
@@ -352,8 +364,9 @@
         ? '<button type="button" class="card-rodape" data-acao="' + esc(opts.rodape.acao) + '" data-valor="' + esc(opts.rodape.valor || '') + '"><span>' + esc(opts.rodape.texto) + '</span>' + icone('i-arrow') + '</button>'
         : '<div class="card-rodape"><span>' + esc(opts.rodape.texto) + '</span></div>')
       : '';
-    return '<div class="card"><div class="card-topo"><div class="card-icone">' + icone(opts.icone) + '</div>' +
-      '<div><div class="card-rotulo">' + esc(opts.rotulo) + '</div><div class="card-valor">' + esc(opts.valor) + '</div></div></div>' +
+    const capa = opts.foto ? '<div class="card-icone card-foto">' + opts.foto + '</div>' : '<div class="card-icone">' + icone(opts.icone) + '</div>';
+    return '<div class="card"><div class="card-topo">' + capa +
+      '<div><div class="card-rotulo">' + esc(opts.rotulo) + '</div><div class="card-valor">' + esc(opts.valor) + (opts.selo || '') + '</div></div></div>' +
       linha + rodape + '</div>';
   }
 
@@ -369,6 +382,31 @@
 
   function barra(valor, maximo) {
     return '<td class="barra-celula"><span class="barra" style="width:' + ((100 * valor) / maximo).toFixed(1) + '%"></span></td>';
+  }
+
+  /** Cadastro (nome completo, situação, foto) de um candidato do cargo atual, se houver. */
+  function cadastroDe(numero, cargo) {
+    const c = (db.candidatos.get(cargo || estado.cargo) || new Map()).get(numero);
+    return c && c.cadastro ? c.cadastro : null;
+  }
+
+  /** Foto do candidato com iniciais como reserva (a imagem some se não carregar). */
+  function avatar(nome, numero, tamanho, cargo) {
+    const cad = cadastroDe(numero, cargo);
+    const iniciais = String(nome || '').split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+    const img = cad && cad.foto ? '<img src="' + esc(cad.foto) + '" alt="" loading="lazy" onerror="this.remove()">' : '';
+    return '<span class="avatar" style="width:' + tamanho + 'px;height:' + tamanho + 'px">' + img + '<span class="iniciais">' + esc(iniciais) + '</span></span>';
+  }
+
+  /** Selo de situação (Eleito / Suplente) a partir da totalização do TSE. */
+  function seloSituacao(numero, cargo) {
+    const cad = cadastroDe(numero, cargo);
+    if (!cad || !cad.situacao) return '';
+    const s = cad.situacao.toUpperCase();
+    if (s.startsWith('ELEITO')) return '<span class="selo eleito" title="' + esc(cad.situacao) + '">Eleito</span>';
+    if (s.includes('SUPLENTE')) return '<span class="selo suplente">Suplente</span>';
+    if (s.includes('2º TURNO') || s.includes('2O TURNO')) return '<span class="selo turno">2º turno</span>';
+    return '';
   }
 
   /** Gráfico de pizza em SVG. fatias: [{valor, cor}]; opts: {anel, titulo}. */
@@ -461,8 +499,8 @@
     const todos = !!expandido[chave];
     const itens = todos ? ranking : ranking.slice(0, 5);
     let html = '<div class="detalhe-lista">' + itens.map((c) => '<button type="button" class="detalhe-item' + (c.numero === estado.cand ? ' atual' : '') + '" data-acao="cand" data-valor="' + esc(c.numero) + '">' +
-      '<span class="pos">' + c.posicao + 'º</span><span class="ponto-cor" style="background:' + cores.cor(c.partido) + '"></span>' +
-      '<span class="nome">' + esc(c.nome) + '<small>' + esc(c.partido) + '</small></span>' +
+      '<span class="pos">' + c.posicao + 'º</span>' + avatar(c.nome, c.numero, 30) + '<span class="ponto-cor" style="background:' + cores.cor(c.partido) + '"></span>' +
+      '<span class="nome">' + esc(c.nome) + '<small>' + esc(c.partido) + '</small>' + seloSituacao(c.numero) + '</span>' +
       '<span class="num">' + fmtInt(c.votos) + '<small>' + fmtPct(pct(c.votos, validos)) + '</small></span></button>').join('') + '</div>';
     if (ranking.length > 5) {
       html += '<button type="button" class="btn btn-vermais" data-acao="vermais" data-valor="' + chave + '">' +
@@ -486,11 +524,15 @@
     const porBairro = estado.bairro ? null : distribuicaoCandidato('bairro');
     const maiorBairro = porBairro && porBairro.linhas[0];
 
+    const cad = cand.cadastro;
+    const rodapeCand = cand.numero + ' · ' + cand.partido + (cand.coligacao && cand.coligacao !== cand.partido ? ' · ' + cand.coligacao : '') +
+      (cad && cad.nome && cad.nome !== cand.nome ? ' · ' + titulo(cad.nome) : '') + (cad && cad.ocupacao ? ' · ' + titulo(cad.ocupacao) : '');
     el.resumo.innerHTML = [
       card({
-        icone: 'i-vote', rotulo: 'Votos ' + escopo, valor: fmtInt(d.totalCand),
+        icone: 'i-vote', foto: avatar(cand.nome, cand.numero, 44), selo: seloSituacao(cand.numero),
+        rotulo: 'Votos ' + escopo, valor: fmtInt(d.totalCand),
         linha: { rotulo: 'Dos válidos para ' + estado.cargo + ':', valor: fmtPct(pct(d.totalCand, d.totalValidos)), cor: 'verde' },
-        rodape: { texto: cand.numero + ' · ' + cand.partido + (cand.coligacao && cand.coligacao !== cand.partido ? ' · ' + cand.coligacao : '') },
+        rodape: { texto: rodapeCand },
       }),
       card({
         icone: 'i-trophy', rotulo: 'Posição no ranking ' + escopo, valor: posicao ? posicao.posicao + 'º' : '—',
@@ -623,7 +665,7 @@
     const maxVotos = Math.max(1, ...r.linhas.map((l) => l.votos));
     let html = linhas.map((l) => '<tr class="clicavel" data-cand="' + esc(l.numero) + '">' +
       '<td class="pos">' + l.posicao + '</td>' +
-      '<td class="texto"><strong>' + esc(l.nome) + '</strong><span class="mono">' + esc(l.numero) + '</span></td>' +
+      '<td class="texto"><span class="cand-linha">' + avatar(l.nome, l.numero, 32) + '<span><strong>' + esc(l.nome) + '</strong><span class="mono">' + esc(l.numero) + '</span>' + seloSituacao(l.numero) + '</span></span></td>' +
       '<td><span class="ponto-cor" style="background:' + cores.cor(l.partido) + '"></span>' + esc(l.partido) + '</td><td class="num"><strong>' + fmtInt(l.votos) + '</strong></td>' +
       '<td class="num">' + fmtPct(pct(l.votos, t.validos)) + '</td>' + barra(l.votos, maxVotos) + '</tr>').join('');
     if (!q && r.legendas.size) {

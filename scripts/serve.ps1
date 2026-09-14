@@ -6,7 +6,7 @@ $raiz = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $tipos = @{
   '.html'='text/html; charset=utf-8'; '.css'='text/css; charset=utf-8'; '.js'='application/javascript; charset=utf-8'
   '.json'='application/json; charset=utf-8'; '.csv'='text/csv; charset=utf-8'; '.png'='image/png'; '.svg'='image/svg+xml'
-  '.ico'='image/x-icon'; '.geojson'='application/geo+json; charset=utf-8'
+  '.ico'='image/x-icon'; '.geojson'='application/geo+json; charset=utf-8'; '.jpg'='image/jpeg'; '.jpeg'='image/jpeg'; '.webp'='image/webp'
 }
 
 $listener = New-Object System.Net.HttpListener

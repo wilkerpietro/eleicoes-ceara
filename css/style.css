@@ -292,3 +292,18 @@ button.detalhe-item:hover { background: var(--painel-suave); border-color: var(-
 .btn-vermais:hover { background: var(--primaria-suave); }
 td .ponto-cor { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: middle; border: 1px solid rgba(0, 0, 0, 0.12); }
 .pizza-lista { max-height: 200px; overflow-y: auto; padding-right: 4px; }
+
+/* ---------- fotos e situação dos candidatos ---------- */
+.avatar { position: relative; display: inline-grid; place-items: center; flex: none; border-radius: 50%; overflow: hidden; background: #e3e5e8; color: var(--texto-suave); font-size: 0.7rem; font-weight: 700; vertical-align: middle; border: 1px solid var(--borda); }
+.avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.avatar .iniciais { line-height: 1; }
+.cand-linha { display: inline-flex; align-items: center; gap: 10px; }
+.cand-linha > span:last-child { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0 4px; }
+.card-foto { padding: 0; overflow: hidden; border-radius: 50%; }
+.card-foto .avatar { width: 44px; height: 44px; border: 0; font-size: 0.85rem; }
+.selo { display: inline-block; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 999px; margin-left: 6px; vertical-align: middle; }
+.selo.eleito { background: #dcf5e6; color: #146c3a; }
+.selo.suplente { background: #ececef; color: var(--texto-suave); }
+.card-valor .selo { font-size: 0.62rem; }
+.detalhe-item .avatar { width: 30px; height: 30px; }
+.selo.turno { background: #e8f0fe; color: #1c5cab; }
