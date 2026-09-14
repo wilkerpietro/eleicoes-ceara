@@ -307,3 +307,4 @@ td .ponto-cor { display: inline-block; width: 10px; height: 10px; border-radius:
 .card-valor .selo { font-size: 0.62rem; }
 .detalhe-item .avatar { width: 30px; height: 30px; }
 .selo.turno { background: #e8f0fe; color: #1c5cab; }
+.pizza-lista .nome small { color: var(--texto-fraca); font-size: 0.75rem; }

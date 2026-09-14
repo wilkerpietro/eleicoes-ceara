@@ -477,21 +477,13 @@
     return fatias;
   }
 
-  /** Participação de cada partido (nominais + legenda) em um conjunto de votos. */
-  function participacaoPartidos(ranking, legendas, cores) {
-    const soma = new Map();
-    for (const c of ranking) soma.set(c.partido, (soma.get(c.partido) || 0) + c.votos);
-    for (const [partido, v] of legendas) soma.set(partido, (soma.get(partido) || 0) + v);
-    return Array.from(soma.entries()).sort((a, b) => b[1] - a[1]).map(([sigla, votos]) => ({ sigla, votos, cor: cores.cor(sigla) }));
-  }
-
-  /** Bloco com a pizza (todos os candidatos, cor do partido) e a participação por partido em %. */
+  /** Bloco com a pizza (todos os candidatos, cor do partido) e a lista de votos e % por candidato. */
   function blocoPizzaPartidos(ranking, legendas, validos, cores, tituloTxt) {
     const fatias = fatiasVotos(ranking, legendas, validos, cores, null, 0);
-    const partidos = participacaoPartidos(ranking, legendas, cores);
     return '<div class="pizza-bloco">' + svgPizza(fatias, 132, { titulo: tituloTxt, traco: fatias.length > 40 ? 0.5 : 1 }) +
-      '<div class="pizza-lista">' + partidos.map((p) => '<div class="item"><span class="ponto" style="background:' + p.cor + '"></span><span class="nome">' + esc(p.sigla) + '</span>' +
-        '<span class="num"><b>' + fmtPct(pct(p.votos, validos)) + '</b>' + fmtInt(p.votos) + '</span></div>').join('') + '</div></div>';
+      '<div class="pizza-lista">' + fatias.map((f) => '<div class="item"><span class="ponto" style="background:' + f.cor + '"></span>' +
+        '<span class="nome" title="' + esc(f.rotulo) + ' (' + esc(f.partido) + ')">' + esc(f.rotulo) + ' <small>' + esc(f.partido) + '</small></span>' +
+        '<span class="num"><b>' + fmtPct(pct(f.valor, validos)) + '</b>' + fmtInt(f.valor) + '</span></div>').join('') + '</div></div>';
   }
 
   /** Lista de candidatos com cor do partido: 5 primeiros e botão para ver todos. */
@@ -755,25 +747,33 @@
     renderDetalheBairro(resumo, cand, cores);
   }
 
+  /** Totais do município no mesmo formato de um bairro (para "Detalhes gerais"). */
+  function resumoMunicipio(cand) {
+    const rk = rankingCandidatos();
+    const item = cand ? rk.linhas.find((l) => l.numero === cand.numero) : null;
+    return {
+      bairro: '', aptos: rk.aptos, nSecoes: rk.nSecoes, comparecimento: rk.totais.comparecimento, validos: rk.totais.validos,
+      legenda: rk.totais.legenda, branco: rk.totais.branco, nulo: rk.totais.nulo, ranking: rk.linhas, legendas: rk.legendas,
+      votosCand: item ? item.votos : 0, posicaoCand: item ? item.posicao : null,
+    };
+  }
+
   function renderDetalheBairro(resumo, cand, cores) {
-    if (!estado.bairro || !resumo.has(estado.bairro)) {
-      el.tituloBairro.textContent = 'Detalhes do bairro';
-      el.detalheBairro.innerHTML = '<div class="vazio">Clique em um bairro no mapa (ou escolha no filtro) para ver ' +
-        (cand ? 'a votação de ' + esc(cand.nome) : 'os candidatos mais votados') + ' naquele bairro.</div>';
-      return;
-    }
-    const r = resumo.get(estado.bairro);
-    el.tituloBairro.textContent = titulo(estado.bairro);
+    const geral = !estado.bairro || !resumo.has(estado.bairro);
+    const r = geral ? resumoMunicipio(cand) : resumo.get(estado.bairro);
+    const lugar = geral ? 'Paraipaba' : titulo(estado.bairro);
+    const onde = geral ? 'no município' : 'no bairro';
+    el.tituloBairro.textContent = geral ? 'Detalhes gerais · Paraipaba' : titulo(estado.bairro);
     const stat = (rotulo, valor, sub) => '<div class="detalhe-stat"><span class="rotulo">' + esc(rotulo) + '</span><span class="valor">' + esc(valor) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span></div>';
 
-    let html;
+    let html = geral ? '<div class="dica">Clique em um bairro no mapa (ou escolha no filtro) para ver os detalhes daquele bairro.</div>' : '';
     if (cand) {
       const fatias = fatiasVotos(r.ranking, r.legendas, r.validos, cores, cand, r.votosCand);
-      html = '<div class="pizza-bloco">' + svgPizza(fatias, 132, { titulo: 'Votos de ' + cand.nome + ' em ' + titulo(estado.bairro) }) +
+      html += '<div class="pizza-bloco">' + svgPizza(fatias, 132, { titulo: 'Votos de ' + cand.nome + ' em ' + lugar }) +
         '<div class="pizza-lista">' + fatias.map((f) => '<div class="item"><span class="ponto" style="background:' + f.cor + '"></span><span class="nome" title="' + esc(f.rotulo) + '">' + esc(f.rotulo) + '</span>' +
           '<span class="num"><b>' + fmtPct(pct(f.valor, r.validos)) + '</b>' + fmtInt(f.valor) + '</span></div>').join('') + '</div></div>';
     } else {
-      html = blocoPizzaPartidos(r.ranking, r.legendas, r.validos, cores, 'Divisão dos votos válidos em ' + titulo(estado.bairro));
+      html += blocoPizzaPartidos(r.ranking, r.legendas, r.validos, cores, 'Divisão dos votos válidos em ' + lugar);
     }
 
     html += '<div class="detalhe-stats">' +
@@ -786,20 +786,21 @@
     if (cand) {
       html += '<div class="detalhe-stats">' +
         stat('Votos de ' + cand.nome, fmtInt(r.votosCand), fmtPct(pct(r.votosCand, r.validos)) + ' dos válidos') +
-        stat('Posição no bairro', r.posicaoCand ? r.posicaoCand + 'º' : '—', 'entre ' + r.ranking.length) +
+        stat('Posição ' + onde, r.posicaoCand ? r.posicaoCand + 'º' : '—', 'entre ' + r.ranking.length) +
         '</div>';
     }
 
-    html += '<div class="detalhe-sub">Mais votados no bairro · ' + r.ranking.length + ' candidatos</div>' +
+    html += '<div class="detalhe-sub">Mais votados ' + onde + ' · ' + r.ranking.length + ' candidatos</div>' +
       listaCandidatos(r.ranking, r.validos, cores, 'mapa');
     if (cand && r.posicaoCand && r.posicaoCand > 5 && !expandido.mapa) {
       const c = r.ranking[r.posicaoCand - 1];
-      html += '<div class="detalhe-lista"><div class="detalhe-item atual"><span class="pos">' + c.posicao + 'º</span><span class="nome">' + esc(c.nome) + '<small>' + esc(c.partido) + '</small></span>' +
+      html += '<div class="detalhe-lista"><div class="detalhe-item atual"><span class="pos">' + c.posicao + 'º</span>' + avatar(c.nome, c.numero, 30) + '<span class="nome">' + esc(c.nome) + '<small>' + esc(c.partido) + '</small></span>' +
         '<span class="num">' + fmtInt(c.votos) + '<small>' + fmtPct(pct(c.votos, r.validos)) + '</small></span></div></div>';
     }
-    html += '<div class="detalhe-acoes">' +
-      '<button type="button" class="btn" data-acao="secoes" data-valor="' + esc(estado.bairro) + '">Ver seções do bairro</button>' +
-      '<button type="button" class="btn" data-acao="bairro" data-valor="">Limpar seleção</button></div>';
+    html += '<div class="detalhe-acoes">' + (geral
+      ? '<button type="button" class="btn" data-acao="tela" data-valor="tabela">Ver tabelas do município</button>'
+      : '<button type="button" class="btn" data-acao="secoes" data-valor="' + esc(estado.bairro) + '">Ver seções do bairro</button>' +
+        '<button type="button" class="btn" data-acao="bairro" data-valor="">Limpar seleção</button>') + '</div>';
     el.detalheBairro.innerHTML = html;
   }
 

@@ -16,8 +16,9 @@ Site estático, sem dependências: HTML, CSS e JavaScript puro lendo os CSVs da 
 ## Mapa por bairro (etapa 2)
 
 - Tela **Mapa por bairro** no menu lateral: um gráfico de pizza por bairro. Sem candidato, a pizza divide os votos válidos do bairro entre todos os candidatos (e votos de legenda), cada fatia com a **cor fixa do partido**; com candidato, mostra a fatia dele contra os demais. O tamanho é proporcional aos votos válidos ou aos votos do candidato.
-- Clicar em um bairro abre o painel de detalhes: pizza ampliada com a participação de cada partido em %, aptos, comparecimento, válidos, brancos/nulos, e a lista de mais votados no bairro (cinco primeiros e botão "Ver todos"); com candidato selecionado, também os votos e a posição dele ali.
-- Na tela de tabelas, o painel de destaques do ranking tem a mesma pizza por partido e a mesma lista com "Ver todos"; a tabela de ranking mostra a cor do partido. As cores por partido ficam em `CORES_PARTIDO` no `js/app.js`.
+- Clicar em um bairro abre o painel de detalhes: pizza ampliada com votos e % de cada candidato, aptos, comparecimento, válidos, brancos/nulos, e a lista de mais votados no bairro (cinco primeiros e botão "Ver todos"); com candidato selecionado, também os votos e a posição dele ali.
+- Sem bairro selecionado, o painel do mapa mostra "Detalhes gerais" com os totais do município.
+- Na tela de tabelas, o painel de destaques do ranking tem a mesma pizza e a mesma lista com "Ver todos"; a tabela de ranking mostra a cor do partido. As cores por partido ficam em `CORES_PARTIDO` no `js/app.js`.
 - Na tela de tabelas, com candidato selecionado e visão por bairro, o painel de destaques mostra a pizza da distribuição dos votos do candidato entre os bairros.
 - As coordenadas (centro aproximado de cada bairro) ficam em `data/bairros.json`, extraídas da planilha `data/raw/Geolocalização dos bairros.xlsx`.
 - O mapa usa [Leaflet](https://leafletjs.com/) (carregado via CDN) com o mapa base padrão do [OpenStreetMap](https://www.openstreetmap.org/copyright). Sem internet, as tabelas continuam funcionando; só o mapa fica indisponível.
