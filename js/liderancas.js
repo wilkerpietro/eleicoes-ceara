@@ -490,7 +490,7 @@
       '<div class="la-barra">' + abas + '</div>' +
       '<div class="tabela-scroll"><table class="la-tabela la-est-tabela"><thead><tr><th>Candidato</th><th class="num">Lideranças</th><th class="num">Estimativa de votos</th><th></th></tr></thead><tbody>' + corpo + '</tbody>' +
       '<tfoot><tr><td>Total · ' + esc(aba.rotulo) + '</td><td class="num">' + linhas.reduce((s, e) => s + e.n, 0) + '</td><td class="num">' + fmtInt(linhas.reduce((s, e) => s + e.total, 0)) + '</td><td></td></tr></tfoot></table></div>' +
-      '<div class="la-linha la-add">' + seletor + '<button type="button" class="btn" data-la="novo-cand-grupo">+ Candidato manual</button></div>' + renderNovoCandidato() + '</section>';
+      '<div class="la-linha la-add">' + seletor + '</div></section>';
   }
 
   /** Bloco expandido de um candidato: lideranças que o apoiam no município, totais e inclusão de novas. */
@@ -639,7 +639,7 @@
     else if (acao === 'exportar') exportar();
     else if (acao === 'cargo26') { ui.cargo26 = alvo.dataset.valor; render(); }
     else if (acao === 'fechar-aviso') { ui.aviso = ''; render(); }
-    else if (acao === 'novo-cand-grupo' || acao === 'novo-cand-form') { ui.novoCandidato = CARGOS_APOIO[1]; render(); const i = ctx.el.querySelector('.la-novo-cand input[name="nome"]'); if (i) i.focus(); }
+    else if (acao === 'novo-cand-form') { ui.novoCandidato = CARGOS_APOIO[1]; render(); const i = ctx.el.querySelector('.la-novo-cand input[name="nome"]'); if (i) i.focus(); }
     else if (acao === 'aba-est') { ui.abaEst = alvo.dataset.valor; ui.novoCandidato = false; render(); }
     else if (acao === 'detalhar') { ui.candidato = ui.candidato === alvo.dataset.id ? '' : alvo.dataset.id; render(); }
     else if (acao === 'ver-grupo') { ui.candidato = alvo.dataset.id; if (ctx.irPara) ctx.irPara('estimativa'); else render(); }
