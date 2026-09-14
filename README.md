@@ -19,7 +19,8 @@ Site estático, sem dependências: HTML, CSS e JavaScript puro lendo os CSVs da 
 
 ## Mapa dos votos
 
-- Tela **Mapa dos votos**: em cada bairro (ou em cada município, quando o seletor está em "Todos os municípios"), um mini gráfico de barras com os 3 mais votados (foto no topo da barra, quantidade de votos e barra na cor do partido, altura relativa ao 1º do bairro); com candidato selecionado, uma barra só com os votos dele. Clicar no bairro abre o painel de detalhes (pizza com todos os candidatos, totais e lista com "Ver todos"); sem bairro selecionado, o painel mostra "Detalhes gerais" do município.
+- Tela **Mapa dos votos** (município): em cada bairro, um mini gráfico de barras com os 3 mais votados (foto no topo da barra, quantidade de votos e barra na cor do partido, altura relativa ao 1º do bairro); com candidato selecionado, uma barra só com os votos dele. Clicar no bairro abre o painel de detalhes (pizza com todos os candidatos, totais e lista com "Ver todos"); sem bairro selecionado, o painel mostra "Detalhes gerais" do município.
+- Tela **Mapa dos votos** (Todos os municípios): mapa coroplético do Ceará com o contorno dos 184 municípios (`data/ceara-municipios.geojson`, malha do IBGE em qualidade mínima, com código TSE e nome de cada município). No ranking, cada município recebe a cor do partido do candidato mais votado e a legenda conta quantos municípios cada partido venceu; com candidato selecionado, a intensidade da cor é a fatia dele nos votos válidos. Passar o mouse mostra os 3 mais votados; clicar abre o município. Os totais (aptos, comparecimento, abstenção, válidos, brancos, nulos, seções) aparecem em texto pequeno abaixo da legenda, sem cartões.
 - As coordenadas ficam em `data/bairros.json`, por código TSE do município; a chave `todos` traz a sede dos 184 municípios do Ceará (latitude e longitude do IBGE, via o repositório aberto [kelvins/municipios-brasileiros](https://github.com/kelvins/municipios-brasileiros)), usadas no mapa do agregado estadual. Hoje só Paraipaba tem bairros com coordenadas (planilha em `data/raw/`). Para os demais municípios, os dados abertos do TSE não trazem o bairro dos locais de votação, então a tela informa isso e as tabelas usam local de votação e seção.
 - O mapa usa [Leaflet](https://leafletjs.com/) (CDN) com o mapa base do [OpenStreetMap](https://www.openstreetmap.org/copyright).
 
@@ -61,7 +62,8 @@ scripts/build-municipios.sh  converte o "votacao_secao" do TSE em uma pasta por 
 data/eleicoes.json         manifesto das eleições (pasta, lista de municípios, fotos)
 data/cargos.json           código do cargo (CD_CARGO do TSE) -> nome
 data/partidos.json         número do partido -> sigla, por ano
-data/bairros.json          coordenadas dos bairros, por código de município
+data/bairros.json          coordenadas dos bairros, por código de município (chave "todos" = sede dos municípios)
+data/ceara-municipios.geojson  contorno dos 184 municípios do Ceará (IBGE) com código TSE e nome
 data/<eleicao>/municipios.json          [{"cd","nome"}] dos municípios disponíveis
 data/<eleicao>/<cd_municipio>/secoes.csv      seções do município
 data/<eleicao>/<cd_municipio>/votos.csv       votos por seção

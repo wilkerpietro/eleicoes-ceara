@@ -55,6 +55,7 @@
     tbody: $('#tabela tbody'),
     tfoot: $('#tabela tfoot'),
     rodapeTabela: $('#rodape-tabela'),
+    rodapeMapa: $('#rodape-mapa'),
     tituloMapa: $('#titulo-mapa'),
     dicaMapa: $('#dica-mapa'),
     mapa: $('#mapa'),
@@ -72,6 +73,7 @@
   let cargosNomes = {}; // código do cargo -> nome
   let partidosPorAno = {}; // ano -> {número -> sigla}
   let geoTodos = {}; // cd_municipio -> [{nome, lat, lng}]
+  let malhaCeara = null; // GeoJSON com o contorno dos 184 municípios (mapa do agregado estadual)
   let geo = new Map(); // nome do bairro -> {lat, lng} (município atual)
   const TODOS = 'todos'; // código do agregado estadual
   const nomeMun = () => (db && db.mun ? (db.mun.cd === TODOS ? 'Ceará' : titulo(db.mun.nome)) : '');
@@ -158,12 +160,14 @@
 
   /** Tabelas auxiliares: cargos, partidos e geolocalização dos bairros (por município). */
   async function carregarAuxiliares() {
-    const [cargos, partidos, bairros] = await Promise.all([
+    const [cargos, partidos, bairros, malha] = await Promise.all([
       carregarJson('data/cargos.json', {}), carregarJson('data/partidos.json', {}), carregarJson('data/bairros.json', {}),
+      carregarJson('data/ceara-municipios.geojson', null),
     ]);
     cargosNomes = cargos;
     partidosPorAno = partidos;
     geoTodos = bairros.municipios || {};
+    malhaCeara = malha && malha.features ? malha : null;
   }
 
   function selecionarGeo(cd) {
@@ -650,31 +654,22 @@
       '</div>';
   }
 
-  function renderResumoRanking(r, escopo) {
+  /** Totais do ranking em texto pequeno (rodapé da tabela e do mapa), no lugar dos antigos cartões. */
+  function htmlRodapeTotais(r) {
     const t = r.totais;
     const semAptos = !db.temAptos;
-    el.resumo.innerHTML = [
-      card({
-        icone: 'i-users', rotulo: 'Eleitores aptos ' + escopo, valor: semAptos ? '—' : fmtInt(r.aptos),
-        linha: { rotulo: 'Seções eleitorais:', valor: fmtInt(r.nSecoes), cor: '' },
-        rodape: estado.bairro ? { texto: 'Ver todo o município', acao: 'bairro', valor: '' } : { texto: semAptos ? 'Aptos por seção não disponíveis nesta base' : (db.cfg.data ? 'Votação em ' + db.cfg.data.split('-').reverse().join('/') : '') },
-      }),
-      card({
-        icone: 'i-check', rotulo: 'Comparecimento', valor: fmtInt(t.comparecimento),
-        linha: { rotulo: 'Abstenção:', valor: semAptos ? '—' : fmtPct(pct(r.aptos - t.comparecimento, r.aptos)), cor: 'vermelho' },
-        rodape: { texto: semAptos ? 'Votos apurados nas seções (válidos + brancos + nulos)' : fmtPct(pct(t.comparecimento, r.aptos)) + ' dos aptos compareceram' },
-      }),
-      card({
-        icone: 'i-vote', rotulo: 'Votos válidos · ' + estado.cargo, valor: fmtInt(t.validos),
-        linha: { rotulo: 'Votos de legenda:', valor: fmtInt(t.legenda), cor: '' },
-        rodape: { texto: 'Nominais: ' + fmtInt(t.nominal) },
-      }),
-      card({
-        icone: 'i-flag', rotulo: 'Brancos e nulos', valor: fmtInt(t.branco + t.nulo),
-        linha: { rotulo: 'Do comparecimento:', valor: fmtPct(pct(t.branco + t.nulo, t.comparecimento)), cor: 'laranja' },
-        rodape: { texto: 'Brancos ' + fmtInt(t.branco) + ' · nulos ' + fmtInt(t.nulo) },
-      }),
-    ].join('');
+    const item = (rotulo, valor) => '<span class="rodape-item">' + rotulo + ' <b>' + valor + '</b></span>';
+    return [
+      item('Eleitores aptos', semAptos ? 'não disponível nesta base' : fmtInt(r.aptos)),
+      item('Comparecimento', fmtInt(t.comparecimento) + (semAptos ? '' : ' <small>(' + fmtPct(pct(t.comparecimento, r.aptos)) + ')</small>')),
+      semAptos ? '' : item('Abstenção', fmtPct(pct(r.aptos - t.comparecimento, r.aptos))),
+      item('Válidos', fmtInt(t.validos) + ' <small>(nominais ' + fmtInt(t.nominal) + ' · legenda ' + fmtInt(t.legenda) + ')</small>'),
+      item('Brancos', fmtInt(t.branco)),
+      item('Nulos', fmtInt(t.nulo) + ' <small>(brancos e nulos: ' + fmtPct(pct(t.branco + t.nulo, t.comparecimento)) + ' do comparecimento)</small>'),
+      item('Seções', fmtInt(r.nSecoes)),
+      db.cfg.data ? item('Votação em', db.cfg.data.split('-').reverse().join('/')) : '',
+      estado.bairro ? '<button type="button" class="link" data-acao="bairro" data-valor="">Ver todo o município</button>' : '',
+    ].filter(Boolean).join('');
   }
 
   // ---------- tela de tabelas ----------
@@ -751,19 +746,7 @@
     el.tfoot.innerHTML = '<tr><td colspan="3">Válidos ' + esc(escopo) + '</td><td class="num">' + fmtInt(t.validos) + '</td>' +
       '<td class="num">100,0%</td><td></td></tr>';
 
-    const semAptos = !db.temAptos;
-    const item = (rotulo, valor) => '<span class="rodape-item">' + rotulo + ' <b>' + valor + '</b></span>';
-    el.rodapeTabela.innerHTML = [
-      item('Eleitores aptos', semAptos ? 'não disponível nesta base' : fmtInt(r.aptos)),
-      item('Comparecimento', fmtInt(t.comparecimento) + (semAptos ? '' : ' <small>(' + fmtPct(pct(t.comparecimento, r.aptos)) + ')</small>')),
-      semAptos ? '' : item('Abstenção', fmtPct(pct(r.aptos - t.comparecimento, r.aptos))),
-      item('Válidos', fmtInt(t.validos) + ' <small>(nominais ' + fmtInt(t.nominal) + ' · legenda ' + fmtInt(t.legenda) + ')</small>'),
-      item('Brancos', fmtInt(t.branco)),
-      item('Nulos', fmtInt(t.nulo) + ' <small>(brancos e nulos: ' + fmtPct(pct(t.branco + t.nulo, t.comparecimento)) + ' do comparecimento)</small>'),
-      item('Seções', fmtInt(r.nSecoes)),
-      db.cfg.data ? item('Votação em', db.cfg.data.split('-').reverse().join('/')) : '',
-      estado.bairro ? '<button type="button" class="link" data-acao="bairro" data-valor="">Ver todo o município</button>' : '',
-    ].filter(Boolean).join('');
+    el.rodapeTabela.innerHTML = htmlRodapeTotais(r);
     el.rodapeTabela.hidden = false;
   }
 
@@ -781,17 +764,95 @@
     return true;
   }
 
+  /**
+   * Mapa do Ceará (agregado estadual): cada município é desenhado pelo seu contorno e pintado com a cor
+   * do partido do candidato mais votado; com candidato selecionado, a intensidade da cor é a fatia dele nos válidos.
+   */
+  function renderMapaCeara(resumo, cores, cand) {
+    el.tituloMapa.textContent = cand ? cand.nome + ' — votos por município' : 'Mapa do Ceará · ' + estado.cargo;
+    el.dicaMapa.textContent = cand
+      ? 'Quanto mais forte a cor, maior a fatia do candidato nos votos válidos do município. Clique para abrir o município.'
+      : 'Cada município tem a cor do partido do candidato mais votado. Clique para abrir o município.';
+    el.mapaAviso.hidden = true;
+    el.mapa.hidden = false;
+    el.legendaMapa.hidden = false;
+    if (!garantirMapa()) { renderDetalheBairro(resumo, cand, cores); return; }
+    mapa.camada.clearLayers();
+    mapa.marcadores.clear();
+
+    const CINZA = '#d5d8dc';
+    const corCand = cand ? cores.cor(cand.partido) : '';
+    const maxPct = cand ? Math.max(1, ...Array.from(resumo.values()).map((r) => pct(r.votosCand, r.validos))) : 0;
+    const vitorias = new Map(); // partido -> nº de municípios em que foi o mais votado
+    if (!cand) for (const r of resumo.values()) { const v = r.ranking[0]; if (v) vitorias.set(v.partido, (vitorias.get(v.partido) || 0) + 1); }
+
+    const estilo = (nome) => {
+      const r = resumo.get(nome);
+      const base = { color: '#fff', weight: 1, opacity: 1 };
+      if (!r || !r.validos) return Object.assign(base, { fillColor: CINZA, fillOpacity: 0.6 });
+      if (cand) return Object.assign(base, { fillColor: corCand, fillOpacity: 0.12 + 0.83 * pct(r.votosCand, r.validos) / maxPct });
+      const v = r.ranking[0];
+      return Object.assign(base, { fillColor: v ? cores.cor(v.partido) : CINZA, fillOpacity: 0.85 });
+    };
+    const rotulo = (nome) => {
+      const r = resumo.get(nome);
+      if (!r) return '<b>' + esc(titulo(nome)) + '</b>sem dados';
+      const linha2 = cand
+        ? fmtInt(r.votosCand) + ' votos · ' + fmtPct(pct(r.votosCand, r.validos)) + ' dos válidos' + (r.posicaoCand ? ' · ' + r.posicaoCand + 'º no município' : '')
+        : r.ranking.slice(0, 3).map((c) => esc(c.nome) + ' (' + esc(c.partido) + ') ' + fmtPct(pct(c.votos, r.validos))).join(' · ') + '<br>' + fmtInt(r.validos) + ' votos válidos' + (r.aptos ? ' · ' + fmtInt(r.aptos) + ' aptos' : '');
+      return '<b>' + esc(titulo(nome)) + '</b>' + linha2;
+    };
+
+    const camada = L.geoJSON(malhaCeara, {
+      style: (f) => estilo(f.properties.nome),
+      onEachFeature: (f, layer) => {
+        const nome = f.properties.nome;
+        layer.bindTooltip(rotulo(nome), { className: 'rotulo-bairro', sticky: true, direction: 'top', opacity: 1 });
+        layer.on({
+          mouseover: (e) => { e.target.setStyle({ weight: 2.5, color: '#1f2328' }); e.target.bringToFront(); },
+          mouseout: (e) => camada.resetStyle(e.target),
+          click: () => executarAcao('bairro', nome),
+        });
+      },
+    });
+    camada.addTo(mapa.camada);
+
+    // legenda: partidos vencedores (com nº de municípios) ou degradê da fatia do candidato
+    if (cand) {
+      el.legendaMapa.innerHTML = '<span class="legenda-item">' + esc(cand.nome) + ' (' + esc(cand.partido) + ')</span>' +
+        '<span class="legenda-item legenda-degrade"><span>0%</span><span class="degrade" style="--cor:' + corCand + '"></span><span>' + fmtPct(maxPct) + '</span></span>' +
+        '<span class="legenda-nota">Fatia do candidato nos votos válidos de cada município.</span>';
+    } else {
+      el.legendaMapa.innerHTML = Array.from(vitorias.entries()).sort((a, b) => b[1] - a[1]).map(([sigla, n]) =>
+        '<span class="legenda-item"><span class="amostra" style="background:' + cores.cor(sigla) + '"></span>' + esc(sigla) + ' <small>' + n + (n === 1 ? ' município' : ' municípios') + '</small></span>').join('') +
+        '<span class="legenda-nota">Cor do partido do candidato mais votado em cada município (' + estado.cargo + ').</span>';
+    }
+
+    setTimeout(() => {
+      mapa.obj.invalidateSize();
+      if (!mapa.ajustado) {
+        mapa.obj.fitBounds(camada.getBounds(), { padding: [8, 8] });
+        mapa.ajustado = true;
+      }
+    }, 0);
+
+    renderDetalheBairro(resumo, cand, cores);
+  }
+
   function renderMapa() {
     const cand = estado.cand ? db.candidatos.get(estado.cargo).get(estado.cand) : null;
     const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : emMun();
 
-    // cartões de resumo iguais aos da tela de tabelas
-    el.resumo.hidden = false;
-    if (cand) renderResumoCandidato(cand, distribuicaoCandidato('bairro'), rankingCandidatos(), escopo);
-    else renderResumoRanking(rankingCandidatos(), escopo);
+    // modo candidato: cartão herói; ranking: os totais viram uma linha discreta no rodapé do mapa
+    const rk = rankingCandidatos();
+    el.resumo.hidden = !cand;
+    el.rodapeMapa.hidden = !!cand;
+    if (cand) renderResumoCandidato(cand, distribuicaoCandidato('bairro'), rk, escopo);
+    else { el.resumo.innerHTML = ''; el.rodapeMapa.innerHTML = htmlRodapeTotais(rk); }
 
     const resumo = resumoBairros();
     const cores = coresPartidos();
+    if (noEstado() && malhaCeara) { renderMapaCeara(resumo, cores, cand); return; }
     const metrica = cand ? 'votosCand' : 'validos';
     el.tituloMapa.textContent = cand ? cand.nome + ' — votos por ' + NOME_POR.bairro : 'Votos por ' + NOME_POR.bairro + ' · ' + estado.cargo;
     el.dicaMapa.textContent = cand

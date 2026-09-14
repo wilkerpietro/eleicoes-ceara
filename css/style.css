@@ -465,3 +465,9 @@ body.la-modal-aberto { overflow: hidden; }
 .rodape-tabela small { font-size: 0.75rem; }
 .rodape-tabela .link { border: 0; background: transparent; padding: 0; font: inherit; color: var(--primaria); }
 .rodape-tabela .link:hover { text-decoration: underline; }
+
+/* ---------- mapa do Ceará por município (coroplético) ---------- */
+.leaflet-interactive { cursor: pointer; }
+.legenda-degrade { gap: 6px; }
+.legenda-degrade .degrade { display: inline-block; width: 90px; height: 10px; border-radius: 3px; border: 1px solid rgba(0, 0, 0, 0.12); background: linear-gradient(90deg, color-mix(in srgb, var(--cor) 12%, #fff), var(--cor)); }
+.legenda-mapa small { color: var(--texto-fraca); }
