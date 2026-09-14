@@ -203,26 +203,27 @@
     ]);
     const bairroDaSecao = new Map(s24.map((s) => [s.secao, s.bairro || '']));
     const votos = new Map();
-    const porBairro = new Map(); // numero (vereador) -> Map(bairro -> votos)
+    const porBairro = new Map(); // cargo|numero -> Map(bairro -> votos)
     for (const v of v24) {
       const n = parseInt(v.votos, 10) || 0;
       const k = v.cargo + '|' + v.numero;
       votos.set(k, (votos.get(k) || 0) + n);
-      if (v.cargo !== '13') continue;
+      if (v.cargo !== '13' && v.cargo !== '11') continue;
       const b = bairroDaSecao.get(v.secao) || '';
       if (!b) continue;
-      if (!porBairro.has(v.numero)) porBairro.set(v.numero, new Map());
-      const m = porBairro.get(v.numero);
+      if (!porBairro.has(k)) porBairro.set(k, new Map());
+      const m = porBairro.get(k);
       m.set(b, (m.get(b) || 0) + n);
     }
-    const top3 = (numero) => Array.from((porBairro.get(numero) || new Map()).entries()).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([bairro, n]) => ({ bairro, votos: n }));
+    const top3 = (k) => Array.from((porBairro.get(k) || new Map()).entries()).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([bairro, n]) => ({ bairro, votos: n }));
     const fotos24 = 'data/2024-1/fotos/';
+    const candidato24 = (c, codigo) => ({
+      numero: c.numero, sq: c.sq, nome: c.nome_urna || c.nome, nomeCompleto: c.nome, partido: c.partido, situacao: c.situacao,
+      votos: votos.get(codigo + '|' + c.numero) || 0, foto: c.foto ? fotos24 + c.foto : '', bairros: top3(codigo + '|' + c.numero),
+    });
     const ref = {
-      vereadores: c24.filter((c) => c.cargo === 'Vereador').map((c) => ({
-        numero: c.numero, sq: c.sq, nome: c.nome_urna || c.nome, nomeCompleto: c.nome, partido: c.partido, situacao: c.situacao,
-        votos: votos.get('13|' + c.numero) || 0, foto: c.foto ? fotos24 + c.foto : '', bairros: top3(c.numero),
-      })).sort((a, b) => b.votos - a.votos),
-      prefeitos: c24.filter((c) => c.cargo === 'Prefeito').map((c) => ({ nome: c.nome_urna || c.nome, partido: c.partido, votos: votos.get('11|' + c.numero) || 0, situacao: c.situacao })).sort((a, b) => b.votos - a.votos),
+      vereadores: c24.filter((c) => c.cargo === 'Vereador').map((c) => candidato24(c, '13')).sort((a, b) => b.votos - a.votos),
+      prefeitos: c24.filter((c) => c.cargo === 'Prefeito').map((c) => candidato24(c, '11')).sort((a, b) => b.votos - a.votos),
       estaduais2022: c22.filter((c) => c.cargo === 'Deputado Estadual').map((c) => (c.nome_urna || c.nome) + ' (' + c.partido + ')'),
       federais2022: c22.filter((c) => c.cargo === 'Deputado Federal').map((c) => (c.nome_urna || c.nome) + ' (' + c.partido + ')'),
     };
@@ -230,26 +231,37 @@
     return ref;
   }
 
-  /** Inclui automaticamente os candidatos a vereador de 2024 do município (uma vez). */
+  /** Inclui automaticamente os candidatos a vereador e a prefeito de 2024 do município (uma vez cada grupo). */
   async function importarVereadores(cd) {
-    if (dados.importados[cd]) return 0;
+    const marca = dados.importados[cd]; // true = só vereadores (versão antiga); 'completo' = vereadores e prefeitos
+    if (marca === 'completo') return 0;
     const ref = await referencias(cd);
     const existentes = new Set(dados.liderancas.filter((l) => l.cd_mun === cd && l.sq).map((l) => l.sq));
     let n = 0;
-    for (const v of ref.vereadores) {
-      if (existentes.has(v.sq)) continue;
+    const incluir = (v, origem) => {
+      if (existentes.has(v.sq)) return;
       dados.liderancas.push({
-        id: novoId('l'), cd_mun: cd, nome: v.nome, nomeCompleto: v.nomeCompleto, partido: v.partido, origem: 'vereador2024',
+        id: novoId('l'), cd_mun: cd, nome: v.nome, nomeCompleto: v.nomeCompleto, partido: v.partido, origem,
         sq: v.sq, numero: v.numero, votos2024: v.votos, situacao2024: v.situacao, foto: v.foto, votos2026: null,
         apoio2022_estadual: '', apoio2022_federal: '', apoio2024_prefeito: '', apoio2024_vereador: '',
         apoio2026: {}, obs: '', criadoEm: agora(),
       });
+      existentes.add(v.sq);
       n++;
-    }
-    dados.importados[cd] = true;
+    };
+    if (!marca) for (const v of ref.vereadores) incluir(v, 'vereador2024');
+    for (const p of ref.prefeitos) incluir(p, 'prefeito2024');
+    dados.importados[cd] = 'completo';
     salvar();
     return n;
   }
+
+  const ORIGENS_2024 = { vereador2024: 'Ver. 2024', prefeito2024: 'Pref. 2024' };
+  const foiCandidato2024 = (l) => l.origem in ORIGENS_2024;
+  const selo = (l) => foiCandidato2024(l)
+    ? '<span class="selo suplente" title="Candidato a ' + (l.origem === 'prefeito2024' ? 'prefeito' : 'vereador') + ' em 2024 · ' + esc(l.situacao2024 || '') + '">' + ORIGENS_2024[l.origem] + '</span>'
+    : '<span class="selo turno">Manual</span>';
+  const votos24 = (l) => (foiCandidato2024(l) ? fmtInt(l.votos2024) : '—');
 
   // ---------- consultas ----------
   const doMunicipio = (cd) => dados.liderancas.filter((l) => l.cd_mun === cd);
@@ -265,8 +277,9 @@
   /** Os 3 bairros em que a liderança (candidata a vereador em 2024) teve mais votos, como texto: "Lagoinha, Camboas e Boa Vista". */
   function bairrosTexto(l) {
     const ref = cache[l.cd_mun];
-    if (!ref || l.origem !== 'vereador2024') return '';
-    const v = ref.vereadores.find((x) => x.sq === l.sq || x.numero === l.numero);
+    if (!ref || !foiCandidato2024(l)) return '';
+    const lista = l.origem === 'prefeito2024' ? ref.prefeitos : ref.vereadores;
+    const v = lista.find((x) => x.sq === l.sq || x.numero === l.numero);
     if (!v || !v.bairros.length) return '';
     const nomes = v.bairros.map((b) => titulo(b.bairro));
     return nomes.length > 1 ? nomes.slice(0, -1).join(', ') + ' e ' + nomes[nomes.length - 1] : nomes[0];
@@ -345,7 +358,7 @@
       (filtradas.map((l) => '<tr class="clicavel" data-la="abrir" data-id="' + l.id + '">' +
         '<td class="texto"><span class="cand-linha">' + avatar(l.nome, l.foto, 40) + '<span><strong>' + esc(l.nome) + '</strong>' +
           (l.partido ? '<small class="dica"> · ' + esc(l.partido) + '</small>' : '') + '</span></span></td>' +
-        '<td class="num">' + (l.origem === 'vereador2024' ? fmtInt(l.votos2024) + ' <small class="dica">votos em 2024</small>' + (bairrosTexto(l) ? '<span class="la-bairros">' + esc(bairrosTexto(l)) + '</span>' : '') : '<span class="dica">—</span>') + '</td>' +
+        '<td class="num">' + (foiCandidato2024(l) ? fmtInt(l.votos2024) + ' <small class="dica">votos em 2024' + (l.origem === 'prefeito2024' ? ' (prefeito)' : '') + '</small>' + (bairrosTexto(l) ? '<span class="la-bairros">' + esc(bairrosTexto(l)) + '</span>' : '') : '<span class="dica">—</span>') + '</td>' +
         '<td class="num">' + (expectativa2026(l) ? fmtInt(expectativa2026(l)) : '<span class="dica">—</span>') + '</td>' +
         '<td class="la-td-acoes"><button type="button" class="btn btn-mini" data-la="abrir" data-id="' + l.id + '">Detalhes</button></td></tr>').join('') ||
         '<tr><td colspan="4" class="vazio">Nenhuma liderança' + (q ? ' encontrada para "' + esc(ui.busca) + '"' : ' cadastrada') + '.</td></tr>') +
@@ -375,16 +388,15 @@
           '<br><small class="dica">estimativa: ' + fmtInt(a.estimativa) + ' votos</small></span></span>'
         : '<span class="dica">—</span>') + '</span></div>';
     }).join('');
-    return '<div class="la-modal-topo"><span class="cand-linha">' + avatar(l.nome, l.foto, 72) + '<span><strong class="la-modal-nome">' + esc(l.nome) + '</strong>' +
-        (l.origem === 'vereador2024' ? '<span class="selo suplente" title="Candidato a vereador em 2024">Ver. 2024</span>' : '<span class="selo turno">Manual</span>') +
+    return '<div class="la-modal-topo"><span class="cand-linha">' + avatar(l.nome, l.foto, 72) + '<span><strong class="la-modal-nome">' + esc(l.nome) + '</strong>' + selo(l) +
         (l.nomeCompleto && l.nomeCompleto !== l.nome ? '<br><small class="dica">' + esc(titulo(l.nomeCompleto)) + '</small>' : '') +
         (l.partido ? '<br><small class="dica">' + esc(l.partido) + '</small>' : '') + '</span></span></div>' +
       '<div class="la-det-grid">' +
-        linha('Votos em 2024', l.origem === 'vereador2024' ? fmtInt(l.votos2024) + (l.situacao2024 ? ' <small class="dica">· ' + esc(l.situacao2024) + '</small>' : '') + (bairrosTexto(l) ? '<br><small class="dica">Mais votado em: ' + esc(bairrosTexto(l)) + '</small>' : '') : '') +
+        linha('Votos em 2024' + (l.origem === 'prefeito2024' ? ' (prefeito)' : ''), foiCandidato2024(l) ? fmtInt(l.votos2024) + (l.situacao2024 ? ' <small class="dica">· ' + esc(l.situacao2024) + '</small>' : '') + (bairrosTexto(l) ? '<br><small class="dica">Mais votado em: ' + esc(bairrosTexto(l)) + '</small>' : '') : '') +
         linha('Expectativa de votos em 2026', expectativa2026(l) ? fmtInt(expectativa2026(l)) : '') +
         linha('2022 · trabalhou para Dep. Estadual', esc(l.apoio2022_estadual)) +
         linha('2022 · trabalhou para Dep. Federal', esc(l.apoio2022_federal)) +
-        linha('2024 · apoiou para Prefeito', esc(l.apoio2024_prefeito)) +
+        (l.origem === 'prefeito2024' ? '' : linha('2024 · apoiou para Prefeito', esc(l.apoio2024_prefeito))) +
         (l.origem === 'vereador2024' ? '' : linha('2024 · apoiou para Vereador', esc(l.apoio2024_vereador))) +
       '</div>' +
       '<div class="detalhe-sub">Trabalhará em 2026 para</div><div class="la-det-grid">' + apoios26 + '</div>' +
@@ -403,7 +415,8 @@
     const ref = cache[cd] || { prefeitos: [], vereadores: [], estaduais2022: [], federais2022: [] };
     const v = (k) => esc(l ? (l[k] == null ? '' : l[k]) : '');
     const datalist = (id, itens) => '<datalist id="' + id + '">' + itens.map((i) => '<option value="' + esc(i) + '">').join('') + '</datalist>';
-    const ehVer = l && l.origem === 'vereador2024';
+    const ehVer = l && foiCandidato2024(l); // candidato de 2024: nome vem do TSE e não se edita
+    const ehPref = l && l.origem === 'prefeito2024';
     const linha2026 = (cargo) => {
       const chave = CHAVE_CARGO[cargo];
       const a = l ? apoio(l, chave) : null;
@@ -413,15 +426,15 @@
         '<input name="est_' + chave + '" type="number" min="0" step="1" placeholder="votos p/ ele" value="' + (a && a.estimativa ? a.estimativa : '') + '"></div></div>';
     };
     return '<div class="la-modal-topo"><h2>' + (l ? 'Editar liderança' : 'Nova liderança') + '</h2>' +
-      (ehVer ? '<span class="dica">Candidato a vereador em 2024 · ' + fmtInt(l.votos2024) + ' votos · ' + esc(l.situacao2024 || '') + '</span>' : '') + '</div>' +
+      (ehVer ? '<span class="dica">Candidato a ' + (ehPref ? 'prefeito' : 'vereador') + ' em 2024 · ' + fmtInt(l.votos2024) + ' votos · ' + esc(l.situacao2024 || '') + '</span>' : '') + '</div>' +
       '<form data-la="form" data-id="' + (l ? l.id : '') + '" class="la-grid">' +
       '<label class="campo"><span>Nome</span><input name="nome" required value="' + v('nome') + '"' + (ehVer ? ' readonly' : '') + '></label>' +
       '<label class="campo"><span>Partido / grupo</span><input name="partido" value="' + v('partido') + '"></label>' +
       '<label class="campo"><span>Expectativa de votos em 2026 (a distribuir para os seus candidatos)</span><input name="votos2026" type="number" min="0" step="1" value="' + v('votos2026') + '" placeholder="' + (l && l.votos2024 ? 'ex.: ' + l.votos2024 : 'votos') + '"></label>' +
       '<label class="campo"><span>2022 · trabalhou para (Dep. Estadual)</span><input name="apoio2022_estadual" list="la-est22" value="' + v('apoio2022_estadual') + '" autocomplete="off"></label>' + datalist('la-est22', ref.estaduais2022) +
       '<label class="campo"><span>2022 · trabalhou para (Dep. Federal)</span><input name="apoio2022_federal" list="la-fed22" value="' + v('apoio2022_federal') + '" autocomplete="off"></label>' + datalist('la-fed22', ref.federais2022) +
-      '<label class="campo"><span>2024 · apoiou para Prefeito</span><input name="apoio2024_prefeito" list="la-pref24" value="' + v('apoio2024_prefeito') + '" autocomplete="off"></label>' + datalist('la-pref24', ref.prefeitos.map((p) => p.nome + ' (' + p.partido + ')')) +
-      (ehVer ? '' : '<label class="campo"><span>2024 · apoiou para Vereador</span><input name="apoio2024_vereador" list="la-ver24" value="' + v('apoio2024_vereador') + '" autocomplete="off"></label>' + datalist('la-ver24', ref.vereadores.map((p) => p.nome + ' (' + p.partido + ')'))) +
+      (ehPref ? '' : '<label class="campo"><span>2024 · apoiou para Prefeito</span><input name="apoio2024_prefeito" list="la-pref24" value="' + v('apoio2024_prefeito') + '" autocomplete="off"></label>' + datalist('la-pref24', ref.prefeitos.map((p) => p.nome + ' (' + p.partido + ')'))) +
+      (l && l.origem === 'vereador2024' ? '' : '<label class="campo"><span>2024 · apoiou para Vereador</span><input name="apoio2024_vereador" list="la-ver24" value="' + v('apoio2024_vereador') + '" autocomplete="off"></label>' + datalist('la-ver24', ref.vereadores.map((p) => p.nome + ' (' + p.partido + ')'))) +
       '<div class="la-bloco-2026"><div class="detalhe-sub">Trabalhará em 2026 para</div>' + CARGOS_2026.map(linha2026).join('') +
         '<div class="dica">Digite e escolha na lista (cadastro do TSE de 2026). Candidato fora da lista: <button type="button" class="btn btn-mini" data-la="novo-cand-form">cadastrar manualmente</button></div>' +
         renderNovoCandidato() + '</div>' +
@@ -488,20 +501,17 @@
   /** Bloco expandido de um candidato: lideranças que o apoiam no município, totais e inclusão de novas. */
   function renderGrupoCandidato(cd, lista, c) {
     const g = grupo(c.id, cd);
-    const gTodos = grupo(c.id, null);
-    const municipios = new Set(gTodos.itens.map((i) => i.l.cd_mun));
     const disponiveis = lista.filter((l) => !g.itens.some((i) => i.l.id === l.id)).sort((a, b) => (b.votos2024 || 0) - (a.votos2024 || 0));
     const base2024 = g.itens.reduce((s, i) => s + (i.l.votos2024 || 0), 0);
     let html = '<div class="cards la-cards-grupo">' +
       card(fmtInt(g.total), 'Expectativa em ' + ctx.nomeMun, g.itens.length + ' lideranças no grupo') +
-      card(fmtInt(base2024), 'Votos das lideranças em 2024', 'soma dos votos para vereador (referência)') +
-      card(fmtInt(gTodos.total), 'Expectativa total no Ceará', municipios.size + ' município' + (municipios.size === 1 ? '' : 's') + ' com grupo') +
+      card(fmtInt(base2024), 'Votos das lideranças em 2024', 'soma dos votos que tiveram em 2024 (referência)') +
       '</div>';
     html += '<div class="tabela-scroll"><table class="la-tabela"><thead><tr><th class="pos">#</th><th>Liderança que apoia ' + esc(c.nome) + '</th><th class="num">Votos 2024</th><th class="num">Expectativa 2026</th><th class="num">Estimativa p/ ' + esc(c.nome) + '</th><th></th></tr></thead><tbody>' +
       (g.itens.map((i, idx) => '<tr><td class="pos">' + (idx + 1) + '</td>' +
         '<td class="texto"><span class="cand-linha">' + avatar(i.l.nome, i.l.foto, 30) + '<span><strong>' + esc(i.l.nome) + '</strong>' + (i.l.partido ? '<small class="dica"> · ' + esc(i.l.partido) + '</small>' : '') +
           (bairrosTexto(i.l) ? '<br><small class="dica">' + esc(bairrosTexto(i.l)) + '</small>' : '') + '</span></span></td>' +
-        '<td class="num">' + (i.l.origem === 'vereador2024' ? fmtInt(i.l.votos2024) : '—') + '</td>' +
+        '<td class="num">' + votos24(i.l) + '</td>' +
         '<td class="num">' + (expectativa2026(i.l) ? fmtInt(expectativa2026(i.l)) : '—') + '</td>' +
         '<td class="num"><input type="number" min="0" step="1" class="la-est" value="' + (i.estimativa || '') + '" data-la="estimativa" data-id="' + i.l.id + '" data-chave="' + g.chave + '"></td>' +
         '<td class="la-td-acoes"><button type="button" class="btn btn-mini" data-la="abrir" data-id="' + i.l.id + '" title="Ficha da liderança">Ficha</button> ' +
@@ -510,17 +520,9 @@
       '</tbody><tfoot><tr><td colspan="2">Total em ' + esc(ctx.nomeMun) + '</td><td class="num">' + fmtInt(base2024) + '</td><td></td><td class="num">' + fmtInt(g.total) + '</td><td></td></tr></tfoot></table></div>' +
       '<form data-la="form-add" data-chave="' + g.chave + '" data-cand="' + c.id + '" class="la-linha la-add">' +
         '<select name="lideranca" required><option value="">— adicionar liderança de ' + esc(ctx.nomeMun) + ' —</option>' +
-        disponiveis.map((l) => '<option value="' + l.id + '">' + esc(l.nome) + (l.partido ? ' (' + esc(l.partido) + ')' : '') + (l.origem === 'vereador2024' ? ' · ' + fmtInt(l.votos2024) + ' votos em 2024' : '') + (expectativa2026(l) ? ' · expectativa ' + fmtInt(expectativa2026(l)) : '') + '</option>').join('') +
+        disponiveis.map((l) => '<option value="' + l.id + '">' + esc(l.nome) + (l.partido ? ' (' + esc(l.partido) + ')' : '') + (foiCandidato2024(l) ? ' · ' + fmtInt(l.votos2024) + ' votos em 2024' : '') + (expectativa2026(l) ? ' · expectativa ' + fmtInt(expectativa2026(l)) : '') + '</option>').join('') +
         '</select><input name="estimativa" type="number" min="0" step="1" placeholder="estimativa (vazio = expectativa da liderança)"><button type="submit" class="btn btn-primario">Adicionar ao grupo</button>' +
       '</form>';
-    if (municipios.size > 1) {
-      const porMun = new Map();
-      for (const i of gTodos.itens) porMun.set(i.l.cd_mun, (porMun.get(i.l.cd_mun) || 0) + i.estimativa);
-      html += '<div class="detalhe-sub">Expectativa por município · ' + esc(c.nome) + '</div>' +
-        '<div class="tabela-scroll"><table class="la-tabela"><thead><tr><th>Município</th><th class="num">Lideranças</th><th class="num">Estimativa</th></tr></thead><tbody>' +
-        Array.from(porMun.entries()).sort((a, b) => b[1] - a[1]).map(([cdm, total]) => '<tr><td>' + esc(nomeMunicipio(cdm)) + '</td><td class="num">' + gTodos.itens.filter((i) => i.l.cd_mun === cdm).length + '</td><td class="num">' + fmtInt(total) + '</td></tr>').join('') +
-        '</tbody><tfoot><tr><td>Total</td><td class="num">' + gTodos.itens.length + '</td><td class="num">' + fmtInt(gTodos.total) + '</td></tr></tfoot></table></div>';
-    }
     return html;
   }
 
@@ -579,7 +581,7 @@
     const nome = String(f.get('nome') || '').trim();
     if (!nome) return;
     const reg = l || { id: novoId('l'), cd_mun: ctx.cdMun, origem: 'manual', criadoEm: agora(), apoio2026: {} };
-    if (reg.origem !== 'vereador2024') reg.nome = nome;
+    if (!foiCandidato2024(reg)) reg.nome = nome;
     reg.partido = String(f.get('partido') || '').trim();
     const v26 = parseInt(f.get('votos2026'), 10);
     reg.votos2026 = isNaN(v26) ? null : v26;
