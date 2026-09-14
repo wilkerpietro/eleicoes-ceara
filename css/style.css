@@ -266,3 +266,24 @@ button.detalhe-item:hover { background: var(--painel-suave); border-color: var(-
 }
 
 [hidden] { display: none !important; }
+
+/* ---------- gráficos de pizza ---------- */
+.pizza-marcador { background: transparent; border: 0; }
+.pizza-marcador svg { display: block; filter: drop-shadow(0 1px 2px rgba(17, 24, 39, 0.25)); cursor: pointer; }
+.legenda-mapa .legenda-item { align-items: center; }
+.legenda-mapa .amostra { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0, 0, 0, 0.12); }
+.legenda-mapa .amostra.anel { border-radius: 50%; background: #fff; border: 2.5px solid #b45309; }
+.legenda-mapa .legenda-tam { display: inline-flex; align-items: center; gap: 4px; }
+.legenda-mapa .legenda-tam .circulo { display: inline-block; border-radius: 50%; background: #d5d8dc; }
+.legenda-nota { width: 100%; color: var(--texto-fraca); font-size: 0.78rem; }
+
+.pizza-bloco { display: flex; align-items: center; gap: 14px; padding: 12px; border: 1px solid var(--borda); border-radius: var(--raio-p); background: var(--painel-suave); }
+.pizza-bloco svg { flex: none; }
+.pizza-lista { display: flex; flex-direction: column; gap: 5px; min-width: 0; flex: 1; font-size: 0.85rem; }
+.pizza-lista .item { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.pizza-lista .ponto { width: 10px; height: 10px; border-radius: 3px; flex: none; border: 1px solid rgba(0, 0, 0, 0.12); }
+.pizza-lista .nome { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--texto); }
+.pizza-lista .num { font-variant-numeric: tabular-nums; color: var(--texto-suave); }
+.pizza-lista .num b { color: var(--texto); font-weight: 600; margin-right: 4px; }
+.destaque .ponto-cor { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: middle; border: 1px solid rgba(0, 0, 0, 0.12); }
+.detalhe-item .ponto-cor { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex: none; border: 1px solid rgba(0, 0, 0, 0.12); }

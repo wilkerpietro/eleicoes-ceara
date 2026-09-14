@@ -14,8 +14,9 @@ Site estático, sem dependências: HTML, CSS e JavaScript puro lendo os CSVs da 
 
 ## Mapa por bairro (etapa 2)
 
-- Tela **Mapa por bairro** no menu lateral: um círculo por bairro, com tamanho proporcional aos votos válidos do cargo (sem candidato) ou aos votos do candidato selecionado.
-- Clicar em um bairro abre o painel de detalhes: aptos, comparecimento, válidos, brancos/nulos, os cinco mais votados no bairro e, com candidato selecionado, os votos e a posição dele ali.
+- Tela **Mapa por bairro** no menu lateral: um gráfico de pizza por bairro. Sem candidato, a pizza divide os votos válidos do bairro entre os cinco mais votados no município (cores fixas) e "outros"; com candidato, mostra a fatia dele contra os demais. O tamanho é proporcional aos votos válidos ou aos votos do candidato.
+- Clicar em um bairro abre o painel de detalhes: pizza ampliada com percentuais, aptos, comparecimento, válidos, brancos/nulos, os cinco mais votados no bairro e, com candidato selecionado, os votos e a posição dele ali.
+- Na tela de tabelas, com candidato selecionado e visão por bairro, o painel de destaques mostra a pizza da distribuição dos votos do candidato entre os bairros.
 - As coordenadas (centro aproximado de cada bairro) ficam em `data/bairros.json`, extraídas da planilha `data/raw/Geolocalização dos bairros.xlsx`.
 - O mapa usa [Leaflet](https://leafletjs.com/) (carregado via CDN) com o mapa base padrão do [OpenStreetMap](https://www.openstreetmap.org/copyright). Sem internet, as tabelas continuam funcionando; só o mapa fica indisponível.
 
