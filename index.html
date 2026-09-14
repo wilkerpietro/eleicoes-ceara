@@ -32,8 +32,13 @@
   <div class="app">
     <aside class="lateral">
       <div class="marca">
-        <span class="logo" aria-hidden="true">EP</span>
-        <span class="marca-nome">Eleições Paraipaba</span>
+        <span class="logo" aria-hidden="true">CE</span>
+        <span class="marca-nome">Eleições Ceará</span>
+      </div>
+
+      <div class="campo campo-municipio">
+        <label for="sel-municipio" class="rotulo">Município</label>
+        <select id="sel-municipio" aria-label="Município"></select>
       </div>
 
       <label class="busca">
@@ -101,7 +106,8 @@
             <h2 id="titulo-mapa">Mapa por bairro</h2>
             <span id="dica-mapa" class="dica"></span>
           </div>
-          <div id="mapa" class="mapa" role="application" aria-label="Mapa dos bairros de Paraipaba"></div>
+          <div id="mapa-aviso" class="vazio" hidden></div>
+          <div id="mapa" class="mapa" role="application" aria-label="Mapa dos bairros do município"></div>
           <div id="legenda-mapa" class="legenda-mapa"></div>
         </section>
         <section class="painel painel-bairro">

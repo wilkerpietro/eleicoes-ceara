@@ -1,0 +1,5 @@
+{
+  "_comentario": "Código do cargo (CD_CARGO do TSE) usado na coluna 'cargo' dos arquivos votos.csv.",
+  "1": "Presidente", "3": "Governador", "5": "Senador", "6": "Deputado Federal", "7": "Deputado Estadual",
+  "11": "Prefeito", "13": "Vereador"
+}

@@ -10,3 +10,6 @@ Thumbs.db
 /*.csv
 /fotocand*/
 /*.pdf
+
+# Cadastro TSE de candidatos (contem CPF/e-mail) - nunca versionar
+data/raw/consulta_cand_*.csv

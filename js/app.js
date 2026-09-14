@@ -1,4 +1,4 @@
-/* Eleições Paraipaba — consulta de votação por bairro, local e seção.
+/* Eleições Ceará — consulta de votação por município, bairro, local e seção.
    Sem build: carrega os CSVs em data/ e monta as telas no navegador.
    O mapa usa Leaflet (carregado no index.html) e as coordenadas de data/bairros.json. */
 (function () {
@@ -30,6 +30,7 @@
   const $ = (sel) => document.querySelector(sel);
   const el = {
     eleicao: $('#sel-eleicao'),
+    municipio: $('#sel-municipio'),
     navCargos: $('#nav-cargos'),
     navTelas: $('#nav-telas'),
     candidato: $('#sel-candidato'),
@@ -54,6 +55,7 @@
     tituloMapa: $('#titulo-mapa'),
     dicaMapa: $('#dica-mapa'),
     mapa: $('#mapa'),
+    mapaAviso: $('#mapa-aviso'),
     legendaMapa: $('#legenda-mapa'),
     tituloBairro: $('#titulo-bairro'),
     detalheBairro: $('#detalhe-bairro'),
@@ -61,9 +63,13 @@
     linkRepo: $('#link-repo'),
   };
 
-  const estado = { eleicao: '', cargo: '', cand: '', bairro: '', por: 'bairro', busca: '', tela: 'tabela' };
+  const estado = { eleicao: '', mun: '', cargo: '', cand: '', bairro: '', por: 'bairro', busca: '', tela: 'tabela' };
   let manifesto = null;
-  let geo = new Map(); // nome do bairro -> {lat, lng}
+  let cargosNomes = {}; // código do cargo -> nome
+  let partidosPorAno = {}; // ano -> {número -> sigla}
+  let geoTodos = {}; // cd_municipio -> [{nome, lat, lng}]
+  let geo = new Map(); // nome do bairro -> {lat, lng} (município atual)
+  const nomeMun = () => (db && db.mun ? titulo(db.mun.nome) : '');
   let db = null; // dados da eleição carregada
   const mapa = { obj: null, camada: null, marcadores: new Map(), ajustado: false };
   const expandido = { tabela: false, mapa: false }; // listas de candidatos com "ver todos" aberto
@@ -100,6 +106,7 @@
   function lerHash() {
     const p = new URLSearchParams(location.hash.replace(/^#/, ''));
     estado.eleicao = p.get('e') || estado.eleicao;
+    estado.mun = p.get('m') || estado.mun;
     estado.cargo = p.get('cargo') || '';
     estado.cand = p.get('cand') || '';
     estado.bairro = p.get('bairro') || '';
@@ -111,6 +118,7 @@
   function hashAtual() {
     const p = new URLSearchParams();
     if (estado.eleicao) p.set('e', estado.eleicao);
+    if (estado.mun) p.set('m', estado.mun);
     if (estado.tela !== 'tabela') p.set('tela', estado.tela);
     if (estado.cargo) p.set('cargo', estado.cargo);
     if (estado.cand) p.set('cand', estado.cand);
@@ -130,34 +138,66 @@
   }
 
   // ---------- carga de dados ----------
-  async function carregarGeo() {
+  async function carregarJson(url, padrao) {
     try {
-      const resp = await fetch('data/bairros.json', { cache: 'no-cache' });
-      if (!resp.ok) throw new Error('data/bairros.json (' + resp.status + ')');
-      const json = await resp.json();
-      geo = new Map((json.bairros || []).filter((b) => b.lat != null && b.lng != null).map((b) => [b.nome, { lat: b.lat, lng: b.lng }]));
+      const resp = await fetch(url, { cache: 'no-cache' });
+      if (!resp.ok) throw new Error(url + ' (' + resp.status + ')');
+      return await resp.json();
     } catch (e) {
-      console.warn('Geolocalização dos bairros indisponível:', e);
-      geo = new Map();
+      console.warn('Arquivo auxiliar indisponível:', e);
+      return padrao;
     }
   }
 
-  async function carregarEleicao(id) {
+  /** Tabelas auxiliares: cargos, partidos e geolocalização dos bairros (por município). */
+  async function carregarAuxiliares() {
+    const [cargos, partidos, bairros] = await Promise.all([
+      carregarJson('data/cargos.json', {}), carregarJson('data/partidos.json', {}), carregarJson('data/bairros.json', {}),
+    ]);
+    cargosNomes = cargos;
+    partidosPorAno = partidos;
+    geoTodos = bairros.municipios || {};
+  }
+
+  function selecionarGeo(cd) {
+    geo = new Map((geoTodos[cd] || []).filter((b) => b.lat != null && b.lng != null).map((b) => [b.nome, { lat: b.lat, lng: b.lng }]));
+  }
+
+  const CARGOS_PROPORCIONAIS = new Set(['Deputado Federal', 'Deputado Estadual', 'Vereador']);
+
+  /** Lista de municípios de uma eleição (carregada uma vez por eleição). */
+  async function municipiosDe(cfg) {
+    if (!cfg._municipios) {
+      const lista = await carregarJson(cfg.municipios, []);
+      cfg._municipios = lista.slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+    }
+    return cfg._municipios;
+  }
+
+  async function carregarEleicao(id, cd) {
     const cfg = manifesto.eleicoes.find((e) => e.id === id) || manifesto.eleicoes[0];
     estado.eleicao = cfg.id;
     el.status.textContent = 'Carregando ' + cfg.nome + '…';
     el.status.classList.remove('erro');
 
+    const municipios = await municipiosDe(cfg);
+    let mun = municipios.find((m) => m.cd === cd) || municipios.find((m) => m.cd === manifesto.municipio_padrao) || municipios[0];
+    if (!mun) throw new Error('nenhum município disponível em ' + cfg.nome);
+    estado.mun = mun.cd;
+    const pasta = cfg.pasta + mun.cd + '/';
+    const ano = String(cfg.ano);
+    const partidos = partidosPorAno[ano] || {};
+
     const [secoesCsv, votosCsv, cadastroCsv] = await Promise.all([
-      Csv.carregarCsv(cfg.secoes),
-      Csv.carregarCsv(cfg.votos),
-      cfg.candidatos ? Csv.carregarCsv(cfg.candidatos).catch((e) => { console.warn('Cadastro de candidatos indisponível:', e); return []; }) : Promise.resolve([]),
+      Csv.carregarCsv(pasta + 'secoes.csv'),
+      Csv.carregarCsv(pasta + 'votos.csv'),
+      Csv.carregarCsv(pasta + 'candidatos.csv').catch((e) => { console.warn('Cadastro de candidatos indisponível:', e); return []; }),
     ]);
-    // cadastro (nome completo, situação, foto) indexado por cargo|numero
+    // cadastro (nome de urna, partido, situação, foto) indexado por cargo|numero
     const cadastro = new Map();
     for (const c of cadastroCsv) {
       cadastro.set(c.cargo + '|' + c.numero, {
-        sq: c.sq, nome: c.nome, nome_urna: c.nome_urna, partido: c.partido, situacao: c.situacao || '',
+        sq: c.sq, nome: c.nome, nome_urna: c.nome_urna || c.nome, partido: c.partido, situacao: c.situacao || '',
         genero: c.genero || '', ocupacao: c.ocupacao || '', foto: c.foto ? (cfg.fotos || '') + c.foto : '',
       });
     }
@@ -166,26 +206,32 @@
     for (const s of secoesCsv) {
       secoes.set(s.secao, {
         secao: s.secao, zona: s.zona, cod_local: s.cod_local, local: s.local, endereco: s.endereco,
-        bairro: s.bairro, cep: s.cep, aptos: parseInt(s.aptos, 10) || 0, agregadas: s.agregadas || '',
+        bairro: s.bairro || '', cep: s.cep, aptos: parseInt(s.aptos, 10) || 0, agregadas: s.agregadas || '',
       });
     }
+    const temBairros = Array.from(secoes.values()).some((s) => s.bairro);
+    if (!temBairros) for (const s of secoes.values()) s.bairro = '';
 
     const votos = [];
     const cargosSet = new Set();
     for (const v of votosCsv) {
-      const reg = {
-        secao: v.secao, cargo: v.cargo, numero: v.numero, nome: v.nome, partido: v.partido,
-        coligacao: v.coligacao || '', votos: parseInt(v.votos, 10) || 0,
-      };
-      reg.tipo = tipoVoto(reg);
+      const cargo = cargosNomes[v.cargo] || v.cargo;
+      const numero = v.numero;
+      const reg = { secao: v.secao, cargo, numero, votos: parseInt(v.votos, 10) || 0, coligacao: '' };
+      const cad = cadastro.get(cargo + '|' + numero);
+      if (numero === '95') { reg.tipo = 'branco'; reg.nome = 'BRANCOS'; reg.partido = ''; }
+      else if (numero === '96') { reg.tipo = 'nulo'; reg.nome = 'NULOS'; reg.partido = ''; }
+      else if (CARGOS_PROPORCIONAIS.has(cargo) && numero.length <= 2) { reg.tipo = 'legenda'; reg.partido = partidos[numero] || numero; reg.nome = 'LEGENDA ' + reg.partido; }
+      else {
+        reg.tipo = 'nominal';
+        reg.nome = cad ? cad.nome_urna : (v.nome || 'CANDIDATO ' + numero);
+        reg.partido = cad && cad.partido ? cad.partido : (v.partido || partidos[numero.slice(0, 2)] || numero.slice(0, 2));
+      }
       if (!secoes.has(reg.secao)) {
-        secoes.set(reg.secao, {
-          secao: reg.secao, zona: v.zona, cod_local: '', local: 'Local não informado', endereco: '',
-          bairro: 'BAIRRO NÃO INFORMADO', cep: '', aptos: 0, agregadas: '',
-        });
+        secoes.set(reg.secao, { secao: reg.secao, zona: v.zona, cod_local: '', local: 'Local não informado', endereco: '', bairro: temBairros ? 'BAIRRO NÃO INFORMADO' : '', cep: '', aptos: 0, agregadas: '' });
       }
       votos.push(reg);
-      cargosSet.add(reg.cargo);
+      cargosSet.add(cargo);
     }
 
     // candidatos por cargo (apenas votos nominais)
@@ -194,15 +240,19 @@
       if (v.tipo !== 'nominal') continue;
       if (!candidatos.has(v.cargo)) candidatos.set(v.cargo, new Map());
       const m = candidatos.get(v.cargo);
-      if (!m.has(v.numero)) m.set(v.numero, { numero: v.numero, nome: v.nome, partido: v.partido, coligacao: v.coligacao, total: 0, cadastro: cadastro.get(v.cargo + '|' + v.numero) || null });
+      if (!m.has(v.numero)) m.set(v.numero, { numero: v.numero, nome: v.nome, partido: v.partido, coligacao: '', total: 0, cadastro: cadastro.get(v.cargo + '|' + v.numero) || null });
       m.get(v.numero).total += v.votos;
     }
 
-    const bairros = Array.from(new Set(Array.from(secoes.values()).map((s) => s.bairro)))
-      .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    const bairros = temBairros
+      ? Array.from(new Set(Array.from(secoes.values()).map((s) => s.bairro))).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+      : [];
+    const temAptos = Array.from(secoes.values()).some((s) => s.aptos > 0);
 
-    db = { cfg, secoes, votos, cargos: ordenarCargos(Array.from(cargosSet)), candidatos, bairros };
+    selecionarGeo(mun.cd);
+    db = { cfg, mun, municipios, secoes, votos, cargos: ordenarCargos(Array.from(cargosSet)), candidatos, bairros, temBairros, temAptos };
     mapa.ajustado = false;
+    if (!temBairros) { estado.bairro = ''; if (estado.por === 'bairro') estado.por = 'local'; }
     el.status.textContent = '';
     el.fonte.textContent = 'Fonte: ' + (cfg.fonte || 'TSE/TRE-CE') + '.';
   }
@@ -310,6 +360,14 @@
 
   function renderControles() {
     el.eleicao.innerHTML = manifesto.eleicoes.map((e) => opcao(e.id, e.nome, e.id === estado.eleicao)).join('');
+    el.municipio.innerHTML = db.municipios.map((m) => opcao(m.cd, titulo(m.nome), m.cd === estado.mun)).join('');
+    document.title = 'Eleições ' + nomeMun() + ' · Votação por bairro e seção';
+
+    // sem bairros cadastrados, esconde o filtro e a opção "Bairro"
+    el.bairro.parentElement.hidden = !db.temBairros;
+    const radioBairro = document.querySelector('input[name="por"][value="bairro"]');
+    if (radioBairro) radioBairro.parentElement.hidden = !db.temBairros;
+    if (!db.temBairros && estado.por === 'bairro') estado.por = 'local';
 
     if (!db.cargos.includes(estado.cargo)) estado.cargo = db.cargos[0] || '';
     el.navCargos.innerHTML = db.cargos.map((c) => {
@@ -337,7 +395,7 @@
   }
 
   function renderTrilha() {
-    const partes = [{ texto: db.cfg.nome, acao: 'inicio' }];
+    const partes = [{ texto: db.cfg.nome, acao: 'inicio' }, { texto: nomeMun(), acao: 'inicio' }];
     if (estado.tela === 'mapa') partes.push({ texto: 'Mapa', acao: 'tela', valor: 'mapa' });
     partes.push({ texto: estado.cargo, acao: 'cargo' });
     if (estado.bairro) partes.push({ texto: titulo(estado.bairro), acao: 'bairro', valor: estado.bairro });
@@ -552,16 +610,17 @@
 
   function renderResumoRanking(r, escopo) {
     const t = r.totais;
+    const semAptos = !db.temAptos;
     el.resumo.innerHTML = [
       card({
-        icone: 'i-users', rotulo: 'Eleitores aptos ' + escopo, valor: fmtInt(r.aptos),
+        icone: 'i-users', rotulo: 'Eleitores aptos ' + escopo, valor: semAptos ? '—' : fmtInt(r.aptos),
         linha: { rotulo: 'Seções eleitorais:', valor: fmtInt(r.nSecoes), cor: '' },
-        rodape: estado.bairro ? { texto: 'Ver todo o município', acao: 'bairro', valor: '' } : { texto: db.cfg.data ? 'Votação em ' + db.cfg.data.split('-').reverse().join('/') : '' },
+        rodape: estado.bairro ? { texto: 'Ver todo o município', acao: 'bairro', valor: '' } : { texto: semAptos ? 'Aptos por seção não disponíveis nesta base' : (db.cfg.data ? 'Votação em ' + db.cfg.data.split('-').reverse().join('/') : '') },
       }),
       card({
         icone: 'i-check', rotulo: 'Comparecimento', valor: fmtInt(t.comparecimento),
-        linha: { rotulo: 'Abstenção:', valor: fmtPct(pct(r.aptos - t.comparecimento, r.aptos)), cor: 'vermelho' },
-        rodape: { texto: fmtPct(pct(t.comparecimento, r.aptos)) + ' dos aptos compareceram' },
+        linha: { rotulo: 'Abstenção:', valor: semAptos ? '—' : fmtPct(pct(r.aptos - t.comparecimento, r.aptos)), cor: 'vermelho' },
+        rodape: { texto: semAptos ? 'Votos apurados nas seções (válidos + brancos + nulos)' : fmtPct(pct(t.comparecimento, r.aptos)) + ' dos aptos compareceram' },
       }),
       card({
         icone: 'i-vote', rotulo: 'Votos válidos · ' + estado.cargo, valor: fmtInt(t.validos),
@@ -580,7 +639,7 @@
   function renderCandidato() {
     const cand = db.candidatos.get(estado.cargo).get(estado.cand);
     const d = distribuicaoCandidato(estado.por);
-    const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : 'em Paraipaba';
+    const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : 'em ' + nomeMun();
     renderResumoCandidato(cand, d, rankingCandidatos(), escopo);
 
     el.tituloDestaques.textContent = 'Top ' + NOME_POR[estado.por] + (estado.por === 'local' ? 'is' : 's');
@@ -637,7 +696,7 @@
   function renderRanking() {
     const r = rankingCandidatos();
     const t = r.totais;
-    const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : 'em Paraipaba';
+    const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : 'em ' + nomeMun();
     renderResumoRanking(r, escopo);
 
     const cores = coresPartidos();
@@ -686,7 +745,7 @@
 
   function renderMapa() {
     const cand = estado.cand ? db.candidatos.get(estado.cargo).get(estado.cand) : null;
-    const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : 'em Paraipaba';
+    const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : 'em ' + nomeMun();
 
     // cartões de resumo iguais aos da tela de tabelas
     if (cand) renderResumoCandidato(cand, distribuicaoCandidato('bairro'), rankingCandidatos(), escopo);
@@ -701,6 +760,17 @@
       : 'Cada pizza divide os votos válidos do bairro entre todos os candidatos, com a cor do partido; o tamanho é proporcional aos votos válidos. Clique para ver os detalhes.';
     renderLegendaMapa(cores, cand);
 
+    const semGeo = !db.temBairros || geo.size === 0;
+    el.mapaAviso.hidden = !semGeo;
+    el.mapa.hidden = semGeo;
+    el.legendaMapa.hidden = semGeo;
+    if (semGeo) {
+      el.mapaAviso.textContent = db.temBairros
+        ? 'Os bairros de ' + nomeMun() + ' ainda não têm coordenadas em data/bairros.json.'
+        : 'Os dados do TSE para ' + nomeMun() + ' não trazem o bairro de cada local de votação; o mapa depende dessa informação. Os totais do município continuam ao lado.';
+      renderDetalheBairro(resumo, cand, cores);
+      return;
+    }
     if (!garantirMapa()) { renderDetalheBairro(resumo, cand, cores); return; }
 
     mapa.camada.clearLayers();
@@ -761,9 +831,9 @@
   function renderDetalheBairro(resumo, cand, cores) {
     const geral = !estado.bairro || !resumo.has(estado.bairro);
     const r = geral ? resumoMunicipio(cand) : resumo.get(estado.bairro);
-    const lugar = geral ? 'Paraipaba' : titulo(estado.bairro);
+    const lugar = geral ? nomeMun() : titulo(estado.bairro);
     const onde = geral ? 'no município' : 'no bairro';
-    el.tituloBairro.textContent = geral ? 'Detalhes gerais · Paraipaba' : titulo(estado.bairro);
+    el.tituloBairro.textContent = geral ? 'Detalhes gerais · ' + nomeMun() : titulo(estado.bairro);
     const stat = (rotulo, valor, sub) => '<div class="detalhe-stat"><span class="rotulo">' + esc(rotulo) + '</span><span class="valor">' + esc(valor) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span></div>';
 
     let html = geral ? '<div class="dica">Clique em um bairro no mapa (ou escolha no filtro) para ver os detalhes daquele bairro.</div>' : '';
@@ -777,8 +847,8 @@
     }
 
     html += '<div class="detalhe-stats">' +
-      stat('Eleitores aptos', fmtInt(r.aptos), r.nSecoes + ' seções') +
-      stat('Comparecimento', fmtInt(r.comparecimento), fmtPct(pct(r.comparecimento, r.aptos))) +
+      stat('Eleitores aptos', db.temAptos ? fmtInt(r.aptos) : '—', r.nSecoes + ' seções') +
+      stat('Comparecimento', fmtInt(r.comparecimento), db.temAptos ? fmtPct(pct(r.comparecimento, r.aptos)) : 'apurados') +
       stat('Válidos · ' + estado.cargo, fmtInt(r.validos), 'legenda ' + fmtInt(r.legenda)) +
       stat('Brancos e nulos', fmtInt(r.branco + r.nulo), fmtPct(pct(r.branco + r.nulo, r.comparecimento))) +
       '</div>';
@@ -824,9 +894,9 @@
     console.error(e);
   }
 
-  async function trocarEleicao(id) {
+  async function trocarEleicao(id, cd) {
     try {
-      await carregarEleicao(id);
+      await carregarEleicao(id, cd);
       render(false);
     } catch (e) {
       mostrarErro(e);
@@ -848,7 +918,8 @@
   }
 
   // ---------- eventos ----------
-  el.eleicao.addEventListener('change', () => { estado.cand = ''; trocarEleicao(el.eleicao.value); });
+  el.eleicao.addEventListener('change', () => { estado.cand = ''; estado.bairro = ''; trocarEleicao(el.eleicao.value, estado.mun); });
+  el.municipio.addEventListener('change', () => { estado.cand = ''; estado.bairro = ''; estado.busca = ''; trocarEleicao(estado.eleicao, el.municipio.value); });
   el.navCargos.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-cargo]');
     if (!b) return;
@@ -880,9 +951,9 @@
 
   window.addEventListener('popstate', () => {
     if (ignorarPopstate) return;
-    const anterior = estado.eleicao;
+    const anterior = estado.eleicao + '|' + estado.mun;
     lerHash();
-    if (estado.eleicao !== anterior) trocarEleicao(estado.eleicao); else render(false);
+    if (estado.eleicao + '|' + estado.mun !== anterior) trocarEleicao(estado.eleicao, estado.mun); else render(false);
   });
 
   // ---------- início ----------
@@ -893,9 +964,10 @@
       if (!resp.ok) throw new Error('data/eleicoes.json (' + resp.status + ')');
       manifesto = await resp.json();
       estado.eleicao = manifesto.eleicoes[0].id;
+      estado.mun = manifesto.municipio_padrao || '';
       lerHash();
-      await carregarGeo();
-      await trocarEleicao(estado.eleicao);
+      await carregarAuxiliares();
+      await trocarEleicao(estado.eleicao, estado.mun);
     } catch (e) {
       mostrarErro(e);
     }

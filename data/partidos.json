@@ -1,0 +1,15 @@
+{
+  "_comentario": "Número do partido na urna -> sigla, por ano. Usado para votos de legenda e para o partido dos candidatos quando não há cadastro.",
+  "2022": {
+    "10": "REPUBLICANOS", "11": "PP", "12": "PDT", "13": "PT", "14": "PTB", "15": "MDB", "16": "PSTU", "18": "REDE", "19": "PODE",
+    "20": "PSC", "21": "PCB", "22": "PL", "23": "CIDADANIA", "27": "DC", "28": "PRTB", "29": "PCO", "30": "NOVO", "33": "PMN",
+    "35": "PMB", "36": "AGIR", "40": "PSB", "43": "PV", "44": "UNIÃO", "45": "PSDB", "50": "PSOL", "51": "PATRIOTA", "55": "PSD",
+    "65": "PC do B", "70": "AVANTE", "77": "SOLIDARIEDADE", "80": "UP", "90": "PROS"
+  },
+  "2024": {
+    "10": "REPUBLICANOS", "11": "PP", "12": "PDT", "13": "PT", "15": "MDB", "16": "PSTU", "18": "REDE", "20": "PODE",
+    "21": "PCB", "22": "PL", "23": "CIDADANIA", "25": "PRD", "27": "DC", "28": "PRTB", "29": "PCO", "30": "NOVO", "33": "PMN",
+    "35": "PMB", "36": "AGIR", "40": "PSB", "43": "PV", "44": "UNIÃO", "45": "PSDB", "50": "PSOL", "55": "PSD",
+    "65": "PC do B", "70": "AVANTE", "77": "SOLIDARIEDADE", "80": "UP", "90": "MOBILIZA"
+  }
+}

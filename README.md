@@ -1,120 +1,137 @@
-# Eleições Paraipaba
+# Eleições Ceará
 
-Consulta de votação por **bairro**, **local de votação** e **seção eleitoral** no município de Paraipaba-CE.
+Consulta de votação por **município**, **bairro**, **local de votação** e **seção eleitoral** nos 184 municípios do Ceará, a partir dos dados abertos do TSE. O projeto nasceu como "Eleições Paraipaba" e Paraipaba continua sendo o município padrão e o único com bairros geolocalizados.
 
 Site estático, sem dependências: HTML, CSS e JavaScript puro lendo os CSVs da pasta `data/` diretamente no navegador. Pode ser publicado no GitHub Pages sem nenhuma etapa de build.
 
-## O que já funciona (etapa 1 — Eleições 2022)
+## O que já funciona
 
-- Filtros por **eleição**, **cargo**, **candidato** e **bairro**, com busca por nome, número ou partido.
-- **Modo ranking** (nenhum candidato selecionado): ranking dos candidatos do cargo no município ou em um bairro, com aptos, comparecimento, abstenção, válidos, brancos, nulos e votos de legenda.
+- Seleção de **eleição** (2022 gerais, 2024 municipais) e de **município** na barra lateral.
+- Filtros por **cargo**, **candidato** e **bairro** (quando o município tem bairros cadastrados), com busca por nome, número ou partido.
+- **Modo ranking** (nenhum candidato selecionado): ranking dos candidatos do cargo no município ou em um bairro, com aptos, comparecimento, abstenção, válidos, brancos, nulos e votos de legenda; pizza com todos os candidatos na cor fixa do partido e lista de votos e % por candidato; lista de mais votados com os 5 primeiros e "Ver todos".
 - **Modo candidato**: votos do candidato agrupados por bairro, local de votação ou seção, com % dos votos válidos no grupo, % do total do candidato, válidos e aptos.
-- Navegação por clique: candidato no ranking abre a distribuição; bairro na tabela abre as seções daquele bairro.
-- Estado na URL (`#cargo=...&cand=...&bairro=...`) para compartilhar consultas.
-- Foto oficial, nome completo, ocupação e situação (Eleito, Suplente, 2º turno) de cada candidato, a partir do cadastro do TSE.
+- Foto oficial, nome completo, ocupação e situação (Eleito, Suplente, 2º turno) de cada candidato, a partir do cadastro do TSE (2022; 2024 quando o cadastro for adicionado).
+- Navegação por clique (candidato abre a distribuição, bairro abre as seções), trilha de localização e estado na URL (`#e=2022-1&m=15997&cargo=...&cand=...&bairro=...`) para compartilhar consultas.
 
-## Mapa por bairro (etapa 2)
+## Mapa por bairro
 
-- Tela **Mapa por bairro** no menu lateral: um gráfico de pizza por bairro. Sem candidato, a pizza divide os votos válidos do bairro entre todos os candidatos (e votos de legenda), cada fatia com a **cor fixa do partido**; com candidato, mostra a fatia dele contra os demais. O tamanho é proporcional aos votos válidos ou aos votos do candidato.
-- Clicar em um bairro abre o painel de detalhes: pizza ampliada com votos e % de cada candidato, aptos, comparecimento, válidos, brancos/nulos, e a lista de mais votados no bairro (cinco primeiros e botão "Ver todos"); com candidato selecionado, também os votos e a posição dele ali.
-- Sem bairro selecionado, o painel do mapa mostra "Detalhes gerais" com os totais do município.
-- Na tela de tabelas, o painel de destaques do ranking tem a mesma pizza e a mesma lista com "Ver todos"; a tabela de ranking mostra a cor do partido. As cores por partido ficam em `CORES_PARTIDO` no `js/app.js`.
-- Na tela de tabelas, com candidato selecionado e visão por bairro, o painel de destaques mostra a pizza da distribuição dos votos do candidato entre os bairros.
-- As coordenadas (centro aproximado de cada bairro) ficam em `data/bairros.json`, extraídas da planilha `data/raw/Geolocalização dos bairros.xlsx`.
-- O mapa usa [Leaflet](https://leafletjs.com/) (carregado via CDN) com o mapa base padrão do [OpenStreetMap](https://www.openstreetmap.org/copyright). Sem internet, as tabelas continuam funcionando; só o mapa fica indisponível.
+- Tela **Mapa por bairro**: um gráfico de pizza por bairro (todos os candidatos, cor do partido; com candidato, a fatia dele contra os demais), com tamanho proporcional aos votos. Clicar no bairro abre o painel de detalhes; sem bairro selecionado, o painel mostra "Detalhes gerais" do município.
+- As coordenadas ficam em `data/bairros.json`, por código TSE do município. Hoje só Paraipaba tem bairros e coordenadas (planilha em `data/raw/`). Para os demais municípios, os dados abertos do TSE não trazem o bairro dos locais de votação, então a tela informa isso e as tabelas usam local de votação e seção.
+- O mapa usa [Leaflet](https://leafletjs.com/) (CDN) com o mapa base do [OpenStreetMap](https://www.openstreetmap.org/copyright).
 
 ## Como rodar localmente
 
 Os dados são carregados via `fetch`, então a página precisa ser servida por HTTP (abrir o `index.html` direto do disco não funciona).
 
-Qualquer servidor estático serve. Exemplos:
+```bash
+# Windows, sem Python/Node
+powershell -ExecutionPolicy Bypass -File scripts/serve.ps1
+```
 
 ```bash
 # Python
 python -m http.server 8080
 ```
 
-```bash
-# Node
-npx serve .
-```
-
-Ou use a extensão *Live Server* do VS Code. Depois abra `http://localhost:8080`.
+Depois abra `http://localhost:8080`.
 
 ## Estrutura
 
 ```
-index.html            página única
-css/style.css         estilos
-js/csv.js             leitor de CSV (separador ";")
-js/app.js             carga dos dados, agregações e renderização
-data/eleicoes.json    manifesto das eleições disponíveis
-data/bairros.json     coordenadas (lat/lng) de cada bairro, usadas pelo mapa
-data/2022/secoes.csv  seções: zona, seção, local, endereço, bairro, aptos, seções agregadas
-data/2022/votos.csv   votos por seção: cargo, número, nome, votos, partido, coligação
-data/2022/candidatos.csv  cadastro dos candidatos com votos: nome completo, situação, gênero, ocupação, foto
-data/2022/fotos/      fotos oficiais dos candidatos (TSE), nomeadas pelo SQ_CANDIDATO
-data/raw/             arquivos originais do TRE-CE/TSE
+index.html                 página única
+css/style.css              estilos
+js/csv.js                  leitor de CSV (separador ";")
+js/app.js                  carga dos dados, agregações e renderização
+scripts/serve.ps1          servidor HTTP de desenvolvimento (Windows)
+scripts/build-municipios.sh  converte o "votacao_secao" do TSE em uma pasta por município
+data/eleicoes.json         manifesto das eleições (pasta, lista de municípios, fotos)
+data/cargos.json           código do cargo (CD_CARGO do TSE) -> nome
+data/partidos.json         número do partido -> sigla, por ano
+data/bairros.json          coordenadas dos bairros, por código de município
+data/<eleicao>/municipios.json          [{"cd","nome"}] dos municípios disponíveis
+data/<eleicao>/<cd_municipio>/secoes.csv      seções do município
+data/<eleicao>/<cd_municipio>/votos.csv       votos por seção
+data/<eleicao>/<cd_municipio>/candidatos.csv  candidatos com votos no município
+data/<eleicao>/fotos/<SQ_CANDIDATO>.jpg       fotos oficiais (TSE)
+data/raw/                  arquivos originais de Paraipaba (TRE-CE/TSE, planilha de bairros)
 ```
 
-### Formato dos dados
+### Formato dos dados (UTF-8, separador `;`)
 
-`data/<ano>/secoes.csv` (UTF-8, separador `;`):
+`secoes.csv`:
 
 ```
 zona;secao;cod_local;local;endereco;bairro;cep;aptos;agregadas
 ```
 
-`data/<ano>/votos.csv`:
+`bairro`, `cep`, `aptos` e `agregadas` podem ficar vazios. Sem bairro em nenhuma seção, a interface esconde o filtro de bairro; sem aptos, os cartões mostram "—" no lugar de aptos e abstenção.
+
+`votos.csv` (compacto; nomes e partidos vêm de `candidatos.csv`, `cargos.json` e `partidos.json`):
 
 ```
-zona;secao;cargo;numero;nome;votos;partido;coligacao
+zona;secao;cargo;numero;votos
 ```
 
-Linhas com nome `BRANCOS`, `NULOS` e `LEGENDA <partido>` são tratadas como brancos, nulos e votos de legenda. Votos válidos = nominais + legenda.
+`cargo` é o código do TSE (1 Presidente, 3 Governador, 5 Senador, 6 Deputado Federal, 7 Deputado Estadual, 11 Prefeito, 13 Vereador). Número 95 = brancos, 96 = nulos; número de 2 dígitos em cargo proporcional = voto de legenda do partido. Votos válidos = nominais + legenda.
 
-`data/<ano>/candidatos.csv` (opcional, cruzado com os votos por cargo + número):
+`candidatos.csv` (cruzado com os votos por cargo + número):
 
 ```
 cargo;numero;sq;nome;nome_urna;partido;situacao;genero;ocupacao;foto
 ```
 
-Gerado a partir do "consulta_cand" do TSE, mantendo só campos públicos não sensíveis (sem CPF, e-mail, título ou data de nascimento) e só os candidatos com votos no município. Em caso de substituição de candidato (mesmo número), fica a candidatura APTA com situação de totalização definida. A coluna `foto` aponta para `data/<ano>/fotos/<SQ_CANDIDATO>.jpg`, copiada dos pacotes `foto_cand<ano>_<UF>_div` do TSE.
+Gerado a partir do "consulta_cand" do TSE, mantendo só campos públicos não sensíveis (sem CPF, e-mail, título ou data de nascimento) e só os candidatos com votos no município. Em caso de substituição de candidato (mesmo número), fica a candidatura APTA com situação de totalização definida. Sem cadastro (caso de 2024 por enquanto), o nome vem do próprio arquivo de votos e o partido é deduzido do número. A coluna `foto` aponta para `data/<eleicao>/fotos/<SQ_CANDIDATO>.jpg`, copiada dos pacotes `foto_cand<ano>_<UF>_div` do TSE.
 
-### Origem dos dados de 2022
+### Como gerar os dados de uma eleição
 
-- **Seções e bairros**: TRE-CE, "Seções por município" (1º turno, dados de 04/10/2022).
-- **Votos por seção**: TRE-CE/TSE, "Resultado por seção — boletins das urnas", Eleições Gerais 2022, 1º turno (dados gerados em 22/10/2022).
+1. Baixar em [dadosabertos.tse.jus.br](https://dadosabertos.tse.jus.br/) o "Resultados — votação por seção eleitoral" do ano e UF (`votacao_secao_<ano>_CE.zip`), o "Candidatos" (`consulta_cand_<ano>.zip`) e as fotos (`foto_cand<ano>_CE_div.zip`).
+2. Converter o CSV de votação para UTF-8 sem aspas, por exemplo no Git Bash:
 
-Os arquivos originais (ISO-8859-1) estão em `data/raw/`. A conversão para os CSVs em `data/2022/` foi: converter para UTF-8, remover cabeçalhos e rodapés, selecionar e renomear colunas.
-
-Observação: as seções 208 e 212 foram agregadas às seções 152 (Pedrinhas) e 162 (Camburão); os votos delas aparecem nas seções principais, conforme os boletins de urna.
-
-## Como adicionar uma nova eleição (ex.: 2024)
-
-1. Criar `data/2024/secoes.csv` e `data/2024/votos.csv` no formato acima.
-2. Adicionar uma entrada em `data/eleicoes.json`:
-
-```json
-{
-  "id": "2024-1",
-  "ano": 2024,
-  "turno": 1,
-  "nome": "Eleições Municipais 2024 · 1º turno",
-  "data": "2024-10-06",
-  "secoes": "data/2024/secoes.csv",
-  "votos": "data/2024/votos.csv",
-  "fonte": "TRE-CE / TSE — Resultado por seção (boletins de urna)"
-}
+```bash
+unzip -p votacao_secao_2022_CE.zip votacao_secao_2022_CE.csv | iconv -f ISO-8859-1 -t UTF-8 | tr -d '\r' | sed 's/"//g' > v2022.csv
 ```
 
-Os cargos (Prefeito, Vereador) são detectados automaticamente a partir do CSV.
+3. Rodar o conversor (o cadastro e as pastas de fotos são opcionais):
+
+```bash
+bash scripts/build-municipios.sh 2022 v2022.csv data/2022-1 consulta_cand_2022_CE.csv fotocand2022ce
+```
+
+4. Adicionar a eleição em `data/eleicoes.json` (`pasta`, `municipios`, `fotos`, `ano`).
+
+O script também aceita o formato do arquivo "votação por seção" baixado do portal de resultados do TSE para 2024 (`votacao_secao-uf_*_2024_ce.csv`), que traz aptos e comparecimento por seção.
+
+### Seções, bairros e aptos (TRE-CE)
+
+O TRE-CE publica a lista "Seções Eleitorais no Estado" (uma linha por seção, com local, endereço, bairro, CEP, aptos e seções agregadas). O script abaixo aplica essa lista às pastas geradas, preenchendo `secoes.csv` de todos os municípios:
+
+```bash
+bash scripts/aplicar-secoes-tre.sh data/raw/tre-ce-eleicoes-2022-secoes-no-estado-1t_estado-CE.csv data/2022-1
+```
+
+Seções que aparecem nos votos mas não na lista do TRE são mantidas como vieram do arquivo de votação.
+
+### Fotos
+
+As fotos oficiais são reduzidas a miniaturas de 96 px de largura (cerca de 3 KB cada) com `scripts/reduzir-fotos.ps1`, para manter o repositório leve:
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts/reduzir-fotos.ps1 -Pasta data/2024-1/fotos
+```
+
+### Observações sobre as bases atuais
+
+- **2022**: Governador, Senador, Deputado Federal e Deputado Estadual vêm de `votacao_secao_2022_CE`; **Presidente** vem de `votacao_secao_2022_BR` filtrado para o Ceará e anexado com `ANEXAR=1`. Em Paraipaba, a soma de votos para Presidente difere em 1 voto do resultado por seção do TRE-CE usado na primeira versão.
+- **2024**: Vereador vem do arquivo do portal de resultados (`votacao_secao-uf_prefeito_t1_2024_ce`, que apesar do nome só traz Vereador, mas inclui aptos por seção); **Prefeito** vem dos dados abertos (`votacao_secao_2024_CE`, layout "aberto"), anexado com `LAYOUT=aberto ANEXAR=1`. Cadastro e fotos de 2024: `consulta_cand_2024_CE` e `foto_cand2024_CE_div`.
+- Só Paraipaba tem coordenadas de bairros; nos demais municípios a tela de mapa avisa que faltam coordenadas e as tabelas funcionam normalmente por bairro, local e seção.
+- Em Paraipaba 2022, as seções 208 e 212 foram agregadas às seções 152 (Pedrinhas) e 162 (Camburão); os votos delas aparecem nas seções principais, conforme os boletins de urna.
 
 ## Roteiro
 
-- [x] Etapa 1: consulta por candidato com votos por bairro e seção (Eleições 2022).
-- [x] Etapa 2: mapa interativo com a geolocalização de cada bairro (Leaflet), clicando no bairro para ver os dados eleitorais.
-- [ ] Etapa 3: incluir os dados das Eleições Municipais 2024.
+- [x] Etapa 1: consulta por candidato com votos por bairro e seção (Paraipaba, Eleições 2022).
+- [x] Etapa 2: mapa interativo com a geolocalização de cada bairro (Leaflet).
+- [x] Etapa 3: todos os municípios do Ceará nas Eleições 2022 (todos os cargos) e 2024 (Prefeito e Vereador), com seções e bairros do TRE-CE, cadastro e fotos do TSE.
+- [ ] Coordenadas de bairros para outros municípios (mapa).
 - [ ] Publicar no GitHub Pages.
 
 ## Fonte dos dados

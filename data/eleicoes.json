@@ -1,4 +1,6 @@
 {
+  "_comentario": "Manifesto das eleições disponíveis. Cada eleição tem uma pasta com um subdiretório por município (código TSE) contendo secoes.csv, votos.csv e candidatos.csv, além de municipios.json e fotos/.",
+  "municipio_padrao": "15997",
   "eleicoes": [
     {
       "id": "2022-1",
@@ -6,11 +8,21 @@
       "turno": 1,
       "nome": "Eleições Gerais 2022 · 1º turno",
       "data": "2022-10-02",
-      "secoes": "data/2022/secoes.csv",
-      "votos": "data/2022/votos.csv",
-      "candidatos": "data/2022/candidatos.csv",
-      "fotos": "data/2022/fotos/",
-      "fonte": "TRE-CE / TSE — Resultado por seção (boletins de urna), dados gerados em 22/10/2022"
+      "pasta": "data/2022-1/",
+      "municipios": "data/2022-1/municipios.json",
+      "fotos": "data/2022-1/fotos/",
+      "fonte": "TSE — Dados abertos, votação por seção (votacao_secao_2022_CE e votacao_secao_2022_BR), cadastro consulta_cand_2022 e fotos oficiais; seções, bairros e aptos da lista de seções do TRE-CE (04/10/2022)"
+    },
+    {
+      "id": "2024-1",
+      "ano": 2024,
+      "turno": 1,
+      "nome": "Eleições Municipais 2024 · 1º turno",
+      "data": "2024-10-06",
+      "pasta": "data/2024-1/",
+      "municipios": "data/2024-1/municipios.json",
+      "fotos": "data/2024-1/fotos/",
+      "fonte": "TSE — Votação por seção (portal de resultados e dados abertos votacao_secao_2024_CE), cadastro consulta_cand_2024 e fotos oficiais; seções, bairros e aptos da lista de seções do TRE-CE"
     }
   ]
 }

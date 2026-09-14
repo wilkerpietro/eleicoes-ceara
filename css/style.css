@@ -308,3 +308,6 @@ td .ponto-cor { display: inline-block; width: 10px; height: 10px; border-radius:
 .detalhe-item .avatar { width: 30px; height: 30px; }
 .selo.turno { background: #e8f0fe; color: #1c5cab; }
 .pizza-lista .nome small { color: var(--texto-fraca); font-size: 0.75rem; }
+
+.campo-municipio { padding: 2px 4px; }
+.campo-municipio select { font-weight: 600; }
