@@ -33,6 +33,13 @@ ANEXAR="${ANEXAR:-0}"
 TMP="$(mktemp -d)"
 mkdir -p "$DEST"
 
+# grava um arquivo com novas tentativas (no Windows, antivírus/indexador às vezes negam acesso por instantes)
+escrever() {
+  local i
+  for i in 1 2 3 4 5; do cp "$1" "$2" 2>/dev/null && return 0; sleep 2; done
+  cp "$1" "$2"
+}
+
 # tabela número do partido -> sigla, para o ano
 grep -A200 "\"$ANO\"" "$RAIZ/data/partidos.json" | sed -n '2,/}/p' | tr ',' '\n' | sed -n 's/.*"\([0-9][0-9]\)": *"\([^"]*\)".*/\1;\2/p' > "$TMP/partidos.txt"
 
@@ -87,7 +94,8 @@ for d in "$DEST"/*/; do
   else
     cp "$d/secoes.csv" "$TMP/s.csv"
   fi
-  { head -1 "$TMP/s.csv"; tail -n +2 "$TMP/s.csv" | sort -t';' -k1,1n -k2,2n; } > "$d/secoes.csv"
+  { head -1 "$TMP/s.csv"; tail -n +2 "$TMP/s.csv" | sort -t';' -k1,1n -k2,2n; } > "$TMP/s_final.csv"
+  escrever "$TMP/s_final.csv" "$d/secoes.csv"
 done
 if [ "$ANEXAR" = "1" ]; then
   if [ -f "$DEST/municipios.json" ]; then rm -f "$DEST/municipios.json.novo"; else mv "$DEST/municipios.json.novo" "$DEST/municipios.json"; fi
@@ -159,7 +167,8 @@ for d in "$DEST"/*/; do
   else
     cp "$TMP/cf_$cd_.csv" "$TMP/cu_$cd_.csv"
   fi
-  { head -1 "$TMP/cu_$cd_.csv"; tail -n +2 "$TMP/cu_$cd_.csv" | sort -t';' -k1,1 -k2,2n; } > "$d/candidatos.csv"
+  { head -1 "$TMP/cu_$cd_.csv"; tail -n +2 "$TMP/cu_$cd_.csv" | sort -t';' -k1,1 -k2,2n; } > "$TMP/c_final.csv"
+  escrever "$TMP/c_final.csv" "$d/candidatos.csv"
 done
 
 rm -rf "$TMP"

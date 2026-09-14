@@ -33,7 +33,9 @@ for f in "$TMP"/tre_*.txt; do
   else
     cp "$f" "$TMP/uniao.txt"
   fi
-  { echo "zona;secao;cod_local;local;endereco;bairro;cep;aptos;agregadas"; sort -t';' -k1,1n -k2,2n "$TMP/uniao.txt"; } > "$d/secoes.csv"
+  { echo "zona;secao;cod_local;local;endereco;bairro;cep;aptos;agregadas"; sort -t';' -k1,1n -k2,2n "$TMP/uniao.txt"; } > "$TMP/final.txt"
+  ok=0; for i in 1 2 3 4 5; do cp "$TMP/final.txt" "$d/secoes.csv" 2>/dev/null && { ok=1; break; }; sleep 2; done
+  [ "$ok" = 1 ] || cp "$TMP/final.txt" "$d/secoes.csv"
   n=$((n+1))
 done
 rm -rf "$TMP"
