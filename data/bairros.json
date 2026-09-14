@@ -1,0 +1,27 @@
+{
+  "_comentario": "Geolocalização dos bairros de Paraipaba-CE. Preencher lat/lng (centro aproximado) na etapa do mapa interativo.",
+  "bairros": [
+    { "nome": "2ª ETAPA - SETOR G/H", "lat": null, "lng": null },
+    { "nome": "ALTO CIPÓ", "lat": null, "lng": null },
+    { "nome": "BARREIRAS", "lat": null, "lng": null },
+    { "nome": "BOA ESPERANÇA", "lat": null, "lng": null },
+    { "nome": "BOA VISTA-DISTRITO", "lat": null, "lng": null },
+    { "nome": "CACIMBÃO DOS TABOSAS", "lat": null, "lng": null },
+    { "nome": "CALUMBI DOS BENTOS", "lat": null, "lng": null },
+    { "nome": "CAMBOAS", "lat": null, "lng": null },
+    { "nome": "CAMBURÃO", "lat": null, "lng": null },
+    { "nome": "CENTRO", "lat": null, "lng": null },
+    { "nome": "CENTRO GERENCIAL", "lat": null, "lng": null },
+    { "nome": "CORREGO DO MATO", "lat": null, "lng": null },
+    { "nome": "LAGOINHA", "lat": null, "lng": null },
+    { "nome": "PEDRINHAS", "lat": null, "lng": null },
+    { "nome": "SETOR B", "lat": null, "lng": null },
+    { "nome": "SETOR C1", "lat": null, "lng": null },
+    { "nome": "SETOR C2", "lat": null, "lng": null },
+    { "nome": "SETOR D1", "lat": null, "lng": null },
+    { "nome": "SETOR D2", "lat": null, "lng": null },
+    { "nome": "SETOR E", "lat": null, "lng": null },
+    { "nome": "SÃO MIGUEL", "lat": null, "lng": null },
+    { "nome": "ZABELE", "lat": null, "lng": null }
+  ]
+}

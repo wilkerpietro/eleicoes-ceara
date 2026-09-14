@@ -1,0 +1,7 @@
+data/raw/*.ZIP
+*.zip
+/MUNIC-*.csv
+/tre-ce-*.csv
+.claude/
+.DS_Store
+Thumbs.db

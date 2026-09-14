@@ -1,0 +1,14 @@
+{
+  "eleicoes": [
+    {
+      "id": "2022-1",
+      "ano": 2022,
+      "turno": 1,
+      "nome": "Eleições Gerais 2022 · 1º turno",
+      "data": "2022-10-02",
+      "secoes": "data/2022/secoes.csv",
+      "votos": "data/2022/votos.csv",
+      "fonte": "TRE-CE / TSE — Resultado por seção (boletins de urna), dados gerados em 22/10/2022"
+    }
+  ]
+}
