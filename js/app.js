@@ -9,8 +9,8 @@
   const REPO_URL = 'https://github.com/wilkerpietro/eleicoes-paraipaba';
   const NOME_POR = { bairro: 'bairro', local: 'local de votação', secao: 'seção' };
   const NOME_POR_CAB = { bairro: 'Bairro', local: 'Local de votação', secao: 'Seção' };
-  const TILES_URL = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-  const TILES_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
+  const TILES_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  const TILES_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
   const $ = (sel) => document.querySelector(sel);
   const el = {
@@ -505,7 +505,7 @@
       return false;
     }
     mapa.obj = L.map(el.mapa, { scrollWheelZoom: true, zoomControl: true });
-    L.tileLayer(TILES_URL, { attribution: TILES_ATTR, subdomains: 'abcd', maxZoom: 19 }).addTo(mapa.obj);
+    L.tileLayer(TILES_URL, { attribution: TILES_ATTR, maxZoom: 19 }).addTo(mapa.obj);
     mapa.camada = L.layerGroup().addTo(mapa.obj);
     mapa.obj.setView([-3.43, -39.17], 12);
     return true;

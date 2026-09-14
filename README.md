@@ -17,7 +17,7 @@ Site estático, sem dependências: HTML, CSS e JavaScript puro lendo os CSVs da 
 - Tela **Mapa por bairro** no menu lateral: um círculo por bairro, com tamanho proporcional aos votos válidos do cargo (sem candidato) ou aos votos do candidato selecionado.
 - Clicar em um bairro abre o painel de detalhes: aptos, comparecimento, válidos, brancos/nulos, os cinco mais votados no bairro e, com candidato selecionado, os votos e a posição dele ali.
 - As coordenadas (centro aproximado de cada bairro) ficam em `data/bairros.json`, extraídas da planilha `data/raw/Geolocalização dos bairros.xlsx`.
-- O mapa usa [Leaflet](https://leafletjs.com/) (carregado via CDN) com mapa base do [CARTO](https://carto.com/attributions) sobre dados do [OpenStreetMap](https://www.openstreetmap.org/copyright). Sem internet, as tabelas continuam funcionando; só o mapa fica indisponível.
+- O mapa usa [Leaflet](https://leafletjs.com/) (carregado via CDN) com o mapa base padrão do [OpenStreetMap](https://www.openstreetmap.org/copyright). Sem internet, as tabelas continuam funcionando; só o mapa fica indisponível.
 
 ## Como rodar localmente
 
@@ -45,7 +45,7 @@ css/style.css         estilos
 js/csv.js             leitor de CSV (separador ";")
 js/app.js             carga dos dados, agregações e renderização
 data/eleicoes.json    manifesto das eleições disponíveis
-data/bairros.json     lista de bairros com lat/lng (a preencher na etapa do mapa)
+data/bairros.json     coordenadas (lat/lng) de cada bairro, usadas pelo mapa
 data/2022/secoes.csv  seções: zona, seção, local, endereço, bairro, aptos, seções agregadas
 data/2022/votos.csv   votos por seção: cargo, número, nome, votos, partido, coligação
 data/raw/             arquivos originais do TRE-CE/TSE
