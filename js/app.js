@@ -594,8 +594,8 @@
       const p = pct(i.votos, r.validos);
       // com candidato selecionado a altura é a fatia dele nos válidos; no ranking, relativa ao 1º do bairro
       const h = Math.max(4, Math.round(ALTURA_BARRA * (cand ? p / 100 : i.votos / maxVotos)));
-      return '<div class="col" title="' + esc(i.nome) + ' (' + esc(i.partido) + ') · ' + fmtInt(i.votos) + ' votos">' +
-        avatar(i.nome, i.numero, 26) + '<span class="pct">' + fmtPct(p) + '</span>' +
+      return '<div class="col" title="' + esc(i.nome) + ' (' + esc(i.partido) + ') · ' + fmtInt(i.votos) + ' votos · ' + fmtPct(p) + '">' +
+        avatar(i.nome, i.numero, 26) + '<span class="pct">' + fmtInt(i.votos) + '</span>' +
         '<span class="barra" style="height:' + h + 'px;background:' + cores.cor(i.partido) + '"></span></div>';
     }).join('');
     const largura = 12 + 36 * Math.max(1, itens.length);
@@ -613,8 +613,8 @@
     el.legendaMapa.innerHTML = itens.map((i) => '<span class="legenda-item"><span class="amostra" style="background:' + i.cor + '"></span>' + esc(i.rotulo) + '</span>').join('') +
       '<span class="legenda-item"><span class="amostra anel"></span>bairro selecionado</span>' +
       '<span class="legenda-nota">' + (cand
-        ? 'Cada barra mostra a fatia do candidato nos votos válidos do bairro (altura = %).'
-        : 'Cada quadro mostra os 3 mais votados do bairro: foto, % dos votos válidos e barra na cor do partido (altura relativa ao 1º colocado do bairro).') + '</span>';
+        ? 'Cada barra mostra os votos do candidato no bairro (altura = fatia dele nos votos válidos). Passe o cursor para ampliar.'
+        : 'Cada quadro mostra os 3 mais votados do bairro: foto, votos e barra na cor do partido (altura relativa ao 1º colocado). Passe o cursor para ampliar; quadros deslocados ficam ligados ao ponto do bairro por uma linha.') + '</span>';
   }
 
   // ---------- cartões de resumo ----------
@@ -787,9 +787,77 @@
     }
     mapa.obj = L.map(el.mapa, { scrollWheelZoom: true, zoomControl: true });
     L.tileLayer(TILES_URL, { attribution: TILES_ATTR, maxZoom: 19 }).addTo(mapa.obj);
+    mapa.ligacoes = L.layerGroup().addTo(mapa.obj); // linhas dos quadros deslocados até o ponto real
     mapa.camada = L.layerGroup().addTo(mapa.obj);
+    mapa.obj.on('zoomend', posicionarMarcadores);
     mapa.obj.setView([-3.43, -39.17], 12);
     return true;
+  }
+
+  /** Garante que nenhum quadro encoste em outro no zoom atual: reduz um pouco a escala e, se ainda
+   *  houver sobreposição, afasta os quadros em pixels, ligando cada um ao ponto real do bairro por uma linha. */
+  const ESCALA_MAX = 0.58;
+  const ESCALA_MIN = 0.42;
+  const FOLGA = 8; // px de respiro entre quadros
+  function posicionarMarcadores() {
+    if (!mapa.obj || !mapa.dim) return;
+    if (mapa.ligacoes) mapa.ligacoes.clearLayers();
+    const itens = Array.from(mapa.marcadores.values()).map((m) => {
+      const p = mapa.obj.latLngToLayerPoint(m.base);
+      return { m, ox: p.x, oy: p.y, x: p.x, y: p.y };
+    });
+    if (itens.length < 2) { el.mapa.style.setProperty('--escala', ESCALA_MAX); return; }
+
+    // 1) escala: a maior (até o máximo) em que os quadros cabem sem se tocar, limitada a um mínimo legível
+    let s = ESCALA_MAX;
+    for (let i = 0; i < itens.length; i++) {
+      for (let j = i + 1; j < itens.length; j++) {
+        const dx = Math.abs(itens[i].ox - itens[j].ox);
+        const dy = Math.abs(itens[i].oy - itens[j].oy);
+        const permitido = Math.max((dx - FOLGA) / mapa.dim.w, (dy - FOLGA) / mapa.dim.h);
+        if (permitido < s) s = permitido;
+      }
+    }
+    s = Math.max(ESCALA_MIN, Math.min(ESCALA_MAX, s));
+    el.mapa.style.setProperty('--escala', s.toFixed(3));
+
+    // 2) afastamento: empurra pares que ainda se sobrepõem, pelo eixo de menor penetração
+    const w = mapa.dim.w * s + FOLGA;
+    const h = mapa.dim.h * s + FOLGA;
+    for (let passo = 0; passo < 400; passo++) {
+      let mexeu = false;
+      for (let i = 0; i < itens.length; i++) {
+        for (let j = i + 1; j < itens.length; j++) {
+          const a = itens[i];
+          const b = itens[j];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const sobraX = w - Math.abs(dx);
+          const sobraY = h - Math.abs(dy);
+          if (sobraX <= 0 || sobraY <= 0) continue;
+          mexeu = true;
+          if (sobraX < sobraY) {
+            const sinal = dx !== 0 ? Math.sign(dx) : (b.ox >= a.ox ? 1 : -1);
+            a.x -= sinal * (sobraX / 2 + 0.5); b.x += sinal * (sobraX / 2 + 0.5);
+          } else {
+            const sinal = dy !== 0 ? Math.sign(dy) : (b.oy >= a.oy ? 1 : -1);
+            a.y -= sinal * (sobraY / 2 + 0.5); b.y += sinal * (sobraY / 2 + 0.5);
+          }
+        }
+      }
+      if (!mexeu) break;
+    }
+
+    // 3) aplica as posições e desenha a ligação até o ponto real quando o quadro foi deslocado
+    for (const it of itens) {
+      const destino = mapa.obj.layerPointToLatLng(L.point(it.x, it.y));
+      it.m.setLatLng(destino);
+      const desloc = Math.hypot(it.x - it.ox, it.y - it.oy);
+      if (desloc > 3 && mapa.ligacoes) {
+        L.polyline([it.m.base, destino], { className: 'ligacao-bairro', interactive: false }).addTo(mapa.ligacoes);
+        L.circleMarker(it.m.base, { radius: 3, className: 'ponto-bairro', interactive: false }).addTo(mapa.ligacoes);
+      }
+    }
   }
 
   function renderMapa() {
@@ -805,8 +873,8 @@
     const metrica = cand ? 'votosCand' : 'validos';
     el.tituloMapa.textContent = cand ? cand.nome + ' — votos por bairro' : 'Votos por bairro · ' + estado.cargo;
     el.dicaMapa.textContent = cand
-      ? 'Cada bairro mostra a barra do candidato com a foto e a porcentagem dos votos válidos. Clique para ver os detalhes.'
-      : 'Cada bairro mostra os 3 mais votados, com foto, porcentagem dos votos válidos e barra na cor do partido. Clique para ver os detalhes.';
+      ? 'Cada bairro mostra a barra do candidato com a foto e a quantidade de votos. Clique para ver os detalhes.'
+      : 'Cada bairro mostra os 3 mais votados, com foto, quantidade de votos e barra na cor do partido. Clique para ver os detalhes.';
     renderLegendaMapa(cores, cand);
 
     const semGeo = !db.temBairros || geo.size === 0;
@@ -849,8 +917,10 @@
         : top3.map((c) => esc(c.nome) + ' (' + esc(c.partido) + ') ' + fmtPct(pct(c.votos, r.validos))).join(' · ') + '<br>' + fmtInt(r.validos) + ' votos válidos' + (r.aptos ? ' · ' + fmtInt(r.aptos) + ' aptos' : '');
       marcador.bindTooltip('<b>' + esc(titulo(nome)) + '</b>' + linha2, { className: 'rotulo-bairro', direction: 'top', offset: [0, -Math.round(barras.altura / 2)], opacity: 1 });
       marcador.on('click', () => executarAcao('bairro', nome === estado.bairro ? '' : nome));
+      marcador.base = L.latLng(g.lat, g.lng);
       marcador.addTo(mapa.camada);
       mapa.marcadores.set(nome, marcador);
+      mapa.dim = { w: barras.largura, h: barras.altura };
       pontos.push([g.lat, g.lng]);
     }
 
@@ -860,6 +930,7 @@
         mapa.obj.fitBounds(L.latLngBounds(pontos), { padding: [30, 30] });
         mapa.ajustado = true;
       }
+      posicionarMarcadores();
     }, 0);
 
     renderDetalheBairro(resumo, cand, cores);
