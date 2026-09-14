@@ -1,6 +1,8 @@
 {
   "_comentario": "Manifesto das eleições disponíveis. Cada eleição tem uma pasta com um subdiretório por município (código TSE) contendo secoes.csv, votos.csv e candidatos.csv, além de municipios.json e fotos/.",
   "municipio_padrao": "15997",
+  "candidatos2026": "data/2026-1/candidatos.csv",
+  "fotos2026": "data/2026-1/fotos/",
   "eleicoes": [
     {
       "id": "2022-1",

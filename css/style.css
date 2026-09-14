@@ -374,3 +374,8 @@ td .ponto-cor { display: inline-block; width: 10px; height: 10px; border-radius:
 .la-add { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--borda); }
 .la-add select { flex: 2; min-width: 260px; font: inherit; padding: 8px 10px; border: 1px solid var(--borda-forte); border-radius: 9px; background: #fff; }
 .la-add input { flex: 1; min-width: 160px; font: inherit; padding: 8px 10px; border: 1px solid var(--borda-forte); border-radius: 9px; }
+.la-bloco-2026 { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--borda); border-radius: var(--raio-p); background: var(--painel-suave); }
+.la-bloco-2026 .la-2026 { background: #fff; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--borda); }
+.la-bloco-2026 .la-linha input[list] { flex: 2; min-width: 240px; }
+.la-cand-topo { display: flex; align-items: center; }
+.la-cand-topo .avatar { font-size: 1rem; }

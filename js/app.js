@@ -23,7 +23,7 @@
     'PTB': '#37474f', 'PMN': '#6d4c41', 'PODE': '#5c6bc0', 'SOLIDARIEDADE': '#ff7043', 'PSC': '#2e7d32',
     'PATRIOTA': '#283593', 'DC': '#1565c0', 'PSTU': '#b71c1c', 'PCB': '#880e4f', 'PCO': '#4e342e',
     'PMB': '#f48fb1', 'PRTB': '#455a64', 'AGIR': '#ffca28', 'PROS': '#ff8a65', 'UP': '#6a1b9a', 'REDE': '#66bb6a',
-    'PRD': '#3f51b5', 'MOBILIZA': '#795548',
+    'PRD': '#3f51b5', 'MOBILIZA': '#795548', 'MISSÃO': '#0097a7', 'DEMOCRATA': '#7b1fa2',
   };
   const CORES_PARTIDO_RESERVA = ['#90a4ae', '#78909c', '#8d6e63', '#a1887f', '#bdbdbd', '#9e9e9e'];
 
@@ -947,7 +947,7 @@
     el.filtros.hidden = naLideranca;
     el.resumo.hidden = naLideranca;
     if (naLideranca) {
-      if (window.Liderancas) Liderancas.mostrar({ el: el.telaLiderancas, cdMun: estado.mun, nomeMun: nomeMun(), municipios: db.municipios });
+      if (window.Liderancas) Liderancas.mostrar({ el: el.telaLiderancas, cdMun: estado.mun, nomeMun: nomeMun(), municipios: db.municipios, candidatos2026: manifesto.candidatos2026, fotos2026: manifesto.fotos2026 });
       else el.telaLiderancas.innerHTML = '<section class="painel"><div class="vazio">Módulo de lideranças não carregado.</div></section>';
     }
     else if (noMapa) renderMapa();
