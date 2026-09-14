@@ -67,6 +67,7 @@
 
   const estado = { eleicao: '', mun: '', cargo: '', cand: '', bairro: '', por: 'bairro', busca: '', tela: 'tabela' };
   let manifesto = null;
+  let menuRecolhido = false; // cargos da eleição ativa recolhidos no menu lateral
   let cargosNomes = {}; // código do cargo -> nome
   let partidosPorAno = {}; // ano -> {número -> sigla}
   let geoTodos = {}; // cd_municipio -> [{nome, lat, lng}]
@@ -374,9 +375,11 @@
     // eleições como itens de menu; os cargos da eleição atual aparecem aninhados abaixo dela
     el.navEleicoes.innerHTML = manifesto.eleicoes.map((e) => {
       const ativa = e.id === estado.eleicao;
-      let html = '<button type="button" class="nav-item nav-eleicao' + (ativa ? ' ativo' : '') + '" data-eleicao="' + esc(e.id) + '" aria-expanded="' + ativa + '">' +
+      const aberta = ativa && !menuRecolhido;
+      const destacada = ativa && !(estado.tela in TELAS_2026); // nas telas de 2026 o destaque vai para "Candidatos 2026"
+      let html = '<button type="button" class="nav-item nav-eleicao' + (destacada ? ' ativo' : '') + (aberta ? ' aberta' : '') + '" data-eleicao="' + esc(e.id) + '" aria-expanded="' + aberta + '" title="' + (ativa ? (aberta ? 'Recolher os cargos' : 'Mostrar os cargos') : 'Abrir esta eleição') + '">' +
         icone('i-vote') + '<span>' + esc(e.nome_curto || e.nome) + '</span>' + icone('i-right', 'seta') + '</button>';
-      if (ativa) {
+      if (aberta) {
         html += '<div class="nav-sub">' + db.cargos.map((c) => {
           const n = (db.candidatos.get(c) || new Map()).size;
           return '<button type="button" class="nav-item' + (c === estado.cargo ? ' ativo' : '') + '" data-cargo="' + esc(c) + '">' +
@@ -384,7 +387,10 @@
         }).join('') + '</div>';
       }
       return html;
-    }).join('');
+    }).join('') +
+      // o cadastro de candidatos de 2026 fica ao lado das eleições, no mesmo padrão visual
+      '<button type="button" class="nav-item nav-eleicao" data-tela="candidatos26" title="Candidatos registrados no TSE para 2026">' +
+      icone('i-vote') + '<span>Candidatos 2026</span></button>';
 
     const temTodos = !!db.cfg.agregado_estado;
     el.municipio.innerHTML = '<option value="' + TODOS + '"' + (estado.mun === TODOS ? ' selected' : '') + (temTodos ? '' : ' disabled') + '>' +
@@ -621,10 +627,10 @@
       ? [{ rotulo: cand.nome + ' (' + cand.partido + ')', cor: cores.cor(cand.partido) }]
       : cores.lista.map((p) => ({ rotulo: p.sigla, cor: p.cor }));
     el.legendaMapa.innerHTML = itens.map((i) => '<span class="legenda-item"><span class="amostra" style="background:' + i.cor + '"></span>' + esc(i.rotulo) + '</span>').join('') +
-      '<span class="legenda-item"><span class="amostra anel"></span>bairro selecionado</span>' +
+      '<span class="legenda-item"><span class="amostra anel"></span>' + NOME_POR.bairro + ' selecionado</span>' +
       '<span class="legenda-nota">' + (cand
-        ? 'Cada barra mostra os votos do candidato no bairro (altura = fatia dele nos votos válidos).'
-        : 'Cada quadro mostra os 3 mais votados do bairro: foto, votos e barra na cor do partido (altura relativa ao 1º colocado).') + '</span>';
+        ? 'Cada barra mostra os votos do candidato no ' + NOME_POR.bairro + ' (altura = fatia dele nos votos válidos).'
+        : 'Cada quadro mostra os 3 mais votados do ' + NOME_POR.bairro + ': foto, votos e barra na cor do partido (altura relativa ao 1º colocado).') + '</span>';
   }
 
   // ---------- cartões de resumo ----------
@@ -766,10 +772,10 @@
     const resumo = resumoBairros();
     const cores = coresPartidos();
     const metrica = cand ? 'votosCand' : 'validos';
-    el.tituloMapa.textContent = cand ? cand.nome + ' — votos por bairro' : 'Votos por bairro · ' + estado.cargo;
+    el.tituloMapa.textContent = cand ? cand.nome + ' — votos por ' + NOME_POR.bairro : 'Votos por ' + NOME_POR.bairro + ' · ' + estado.cargo;
     el.dicaMapa.textContent = cand
-      ? 'Cada bairro mostra a barra do candidato com a foto e a quantidade de votos. Clique para ver os detalhes.'
-      : 'Cada bairro mostra os 3 mais votados, com foto, quantidade de votos e barra na cor do partido. Clique para ver os detalhes.';
+      ? 'Cada ' + NOME_POR.bairro + ' mostra a barra do candidato com a foto e a quantidade de votos. Clique para ver os detalhes.'
+      : 'Cada ' + NOME_POR.bairro + ' mostra os 3 mais votados, com foto, quantidade de votos e barra na cor do partido. Clique para ver os detalhes.';
     renderLegendaMapa(cores, cand);
 
     const semGeo = !db.temBairros || geo.size === 0;
@@ -972,7 +978,9 @@
     const cargo = ev.target.closest('[data-cargo]');
     if (cargo) { estado.cargo = cargo.dataset.cargo; estado.cand = ''; estado.busca = ''; render(true); return; }
     const eleicao = ev.target.closest('[data-eleicao]');
-    if (!eleicao || eleicao.dataset.eleicao === estado.eleicao) return;
+    if (!eleicao) return;
+    if (eleicao.dataset.eleicao === estado.eleicao) { menuRecolhido = !menuRecolhido; renderControles(); return; } // recolhe/expande os cargos
+    menuRecolhido = false;
     estado.cand = ''; estado.bairro = ''; estado.busca = ''; estado.cargo = '';
     const cfg = manifesto.eleicoes.find((e) => e.id === eleicao.dataset.eleicao);
     const mun = (estado.mun === TODOS && cfg && !cfg.agregado_estado) ? manifesto.municipio_padrao : estado.mun;
@@ -991,6 +999,25 @@
   el.limpar.addEventListener('click', () => { estado.cand = ''; estado.bairro = ''; estado.busca = ''; estado.por = 'bairro'; render(true); });
   el.voltar.addEventListener('click', () => history.back());
   el.avancar.addEventListener('click', () => history.forward());
+
+  // menu sanduíche (celular): a barra lateral vira uma gaveta aberta pelo botão da barra do topo
+  const btnMenu = $('#btn-menu');
+  function abrirMenu(aberto) {
+    document.body.classList.toggle('menu-aberto', aberto);
+    btnMenu.setAttribute('aria-expanded', String(aberto));
+    btnMenu.setAttribute('aria-label', aberto ? 'Fechar menu' : 'Abrir menu');
+  }
+  btnMenu.addEventListener('click', () => abrirMenu(!document.body.classList.contains('menu-aberto')));
+  $('#btn-fechar-menu').addEventListener('click', () => abrirMenu(false));
+  $('#menu-fundo').addEventListener('click', () => abrirMenu(false));
+  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') abrirMenu(false); });
+  // escolher uma tela, um cargo ou outra eleição fecha a gaveta; recolher os cargos da eleição ativa não fecha
+  document.querySelector('.lateral').addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-tela], [data-cargo], [data-eleicao]');
+    if (!b || (b.dataset.eleicao && b.dataset.eleicao === estado.eleicao && !ev.target.closest('[data-cargo]'))) return;
+    abrirMenu(false);
+  });
+  el.municipio.addEventListener('change', () => abrirMenu(false));
 
   document.addEventListener('click', (ev) => {
     const alvo = ev.target.closest('[data-acao]');

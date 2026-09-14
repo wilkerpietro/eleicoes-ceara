@@ -217,11 +217,7 @@ tfoot td { font-weight: 600; background: var(--painel-suave); border-top: 1px so
 }
 @media (max-width: 860px) {
   .app { grid-template-columns: 1fr; margin: 0; border-radius: 0; border: 0; min-height: 100vh; }
-  .lateral { border-right: 0; border-bottom: 1px solid var(--borda); padding: 16px; }
-  .nav-lista { flex-direction: row; flex-wrap: wrap; }
-  .nav-item { width: auto; padding: 8px 12px; }
-  .lateral-rodape { margin-top: 0; }
-  .conteudo { border-radius: 0; border-left: 0; padding: 16px; }
+  .conteudo { border-radius: 0; border-left: 0; padding: 14px; }
   .campo-grande { grid-column: span 1; }
 }
 
@@ -314,7 +310,7 @@ td .ponto-cor { display: inline-block; width: 10px; height: 10px; border-radius:
 
 /* ---------- menu de eleições com cargos aninhados ---------- */
 .nav-eleicao .seta { margin-left: auto; width: 16px; height: 16px; transition: transform 0.15s; color: var(--texto-fraca); }
-.nav-eleicao.ativo .seta { transform: rotate(90deg); color: var(--texto); }
+.nav-eleicao.aberta .seta { transform: rotate(90deg); color: var(--texto); }
 .nav-sub { display: flex; flex-direction: column; gap: 2px; margin: 2px 0 6px 14px; padding-left: 10px; border-left: 2px solid var(--borda-forte); }
 .nav-sub .nav-item { padding: 7px 10px; font-size: 0.9rem; }
 .nav-sub .nav-item.ativo { background: var(--primaria-suave); border-color: transparent; color: var(--primaria); box-shadow: none; }
@@ -446,3 +442,19 @@ body.la-modal-aberto { overflow: hidden; }
 .la-bloqueado p { margin: 0 0 14px; color: var(--texto-suave); }
 .la-abas-login { margin-bottom: 14px; }
 .la-abas-login button { flex: 1; }
+
+/* ---------- menu sanduíche (celular): barra lateral vira uma gaveta ---------- */
+.btn-menu, .btn-fechar-menu { display: none; }
+.menu-fundo { display: none; position: fixed; inset: 0; background: rgba(17, 24, 39, 0.4); z-index: 1200; }
+@media (max-width: 860px) {
+  .btn-menu { display: grid; width: 32px; height: 32px; color: var(--texto); }
+  .btn-fechar-menu { display: grid; margin-left: auto; }
+  .lateral {
+    position: fixed; top: 0; left: 0; bottom: 0; width: 290px; max-width: 86vw; z-index: 1300;
+    overflow-y: auto; border-right: 1px solid var(--borda-forte);
+    transform: translateX(-100%); transition: transform 0.2s ease; visibility: hidden;
+  }
+  body.menu-aberto { overflow: hidden; }
+  body.menu-aberto .lateral { transform: none; visibility: visible; box-shadow: 0 0 40px rgba(17, 24, 39, 0.35); }
+  body.menu-aberto .menu-fundo { display: block; }
+}

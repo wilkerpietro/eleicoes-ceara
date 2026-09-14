@@ -8,7 +8,7 @@ Site estático, sem dependências: HTML, CSS e JavaScript puro lendo os CSVs da 
 
 ## O que já funciona
 
-- Barra lateral com as **eleições** (2022 gerais, 2024 municipais) como itens de menu; os **cargos** da eleição escolhida aparecem aninhados abaixo dela. Em seguida, o seletor de **município**.
+- Barra lateral com as **eleições** (2022 gerais, 2024 municipais) como itens de menu; os **cargos** da eleição escolhida aparecem aninhados abaixo dela e podem ser recolhidos clicando de novo na eleição. Ao lado deles, no mesmo padrão, o item **Candidatos 2026**. Em seguida, o seletor de **município**. No celular a barra lateral fica escondida num botão "sanduíche" na barra do topo e abre como uma gaveta.
 - Opção **"Todos os municípios (Ceará)"** no seletor: agregado estadual em que cada município funciona como um "bairro" (ranking do estado, votos de um candidato por município, clique no município abre a página dele). Disponível nas eleições em que os candidatos são os mesmos no estado inteiro (2022); em 2024 a opção fica desabilitada, porque os números dos candidatos se repetem entre municípios. O agregado é gerado por `scripts/agregar-estado.sh data/2022-1` (pasta `data/2022-1/todos/`) e ligado pela chave `agregado_estado` em `data/eleicoes.json`.
 - Filtros por **cargo**, **candidato** e **bairro** (quando o município tem bairros cadastrados), com busca por nome, número ou partido.
 - **Modo ranking** (nenhum candidato selecionado): ranking dos candidatos do cargo no município ou em um bairro, com foto, cor do partido, votos e %, além de aptos, comparecimento, abstenção, válidos, brancos, nulos e votos de legenda.
@@ -16,10 +16,10 @@ Site estático, sem dependências: HTML, CSS e JavaScript puro lendo os CSVs da 
 - Foto oficial, nome completo, ocupação e situação (Eleito, Suplente, 2º turno) de cada candidato, a partir do cadastro do TSE (2022; 2024 quando o cadastro for adicionado).
 - Navegação por clique (candidato abre a distribuição, bairro abre as seções), trilha de localização e estado na URL (`#e=2022-1&m=15997&cargo=...&cand=...&bairro=...`) para compartilhar consultas.
 
-## Mapa por bairro
+## Mapa dos votos
 
-- Tela **Mapa por bairro**: em cada bairro, um mini gráfico de barras com os 3 mais votados (foto no topo da barra, quantidade de votos e barra na cor do partido, altura relativa ao 1º do bairro); com candidato selecionado, uma barra só com os votos dele. Clicar no bairro abre o painel de detalhes (pizza com todos os candidatos, totais e lista com "Ver todos"); sem bairro selecionado, o painel mostra "Detalhes gerais" do município.
-- As coordenadas ficam em `data/bairros.json`, por código TSE do município. Hoje só Paraipaba tem bairros e coordenadas (planilha em `data/raw/`). Para os demais municípios, os dados abertos do TSE não trazem o bairro dos locais de votação, então a tela informa isso e as tabelas usam local de votação e seção.
+- Tela **Mapa dos votos**: em cada bairro (ou em cada município, quando o seletor está em "Todos os municípios"), um mini gráfico de barras com os 3 mais votados (foto no topo da barra, quantidade de votos e barra na cor do partido, altura relativa ao 1º do bairro); com candidato selecionado, uma barra só com os votos dele. Clicar no bairro abre o painel de detalhes (pizza com todos os candidatos, totais e lista com "Ver todos"); sem bairro selecionado, o painel mostra "Detalhes gerais" do município.
+- As coordenadas ficam em `data/bairros.json`, por código TSE do município; a chave `todos` traz a sede dos 184 municípios do Ceará (latitude e longitude do IBGE, via o repositório aberto [kelvins/municipios-brasileiros](https://github.com/kelvins/municipios-brasileiros)), usadas no mapa do agregado estadual. Hoje só Paraipaba tem bairros com coordenadas (planilha em `data/raw/`). Para os demais municípios, os dados abertos do TSE não trazem o bairro dos locais de votação, então a tela informa isso e as tabelas usam local de votação e seção.
 - O mapa usa [Leaflet](https://leafletjs.com/) (CDN) com o mapa base do [OpenStreetMap](https://www.openstreetmap.org/copyright).
 
 ## Eleições 2026 (mapeamento político municipal)
@@ -136,7 +136,7 @@ powershell -ExecutionPolicy Bypass -File scripts/reduzir-fotos.ps1 -Pasta data/2
 
 - **2022**: Governador, Senador, Deputado Federal e Deputado Estadual vêm de `votacao_secao_2022_CE`; **Presidente** vem de `votacao_secao_2022_BR` filtrado para o Ceará e anexado com `ANEXAR=1`. Em Paraipaba, a soma de votos para Presidente difere em 1 voto do resultado por seção do TRE-CE usado na primeira versão.
 - **2024**: Vereador vem do arquivo do portal de resultados (`votacao_secao-uf_prefeito_t1_2024_ce`, que apesar do nome só traz Vereador, mas inclui aptos por seção); **Prefeito** vem dos dados abertos (`votacao_secao_2024_CE`, layout "aberto"), anexado com `LAYOUT=aberto ANEXAR=1`. Cadastro e fotos de 2024: `consulta_cand_2024_CE` e `foto_cand2024_CE_div`.
-- Só Paraipaba tem coordenadas de bairros; nos demais municípios a tela de mapa avisa que faltam coordenadas e as tabelas funcionam normalmente por bairro, local e seção.
+- Só Paraipaba tem coordenadas de bairros; nos demais municípios a tela de mapa avisa que faltam coordenadas e as tabelas funcionam normalmente por bairro, local e seção. No agregado "Todos os municípios" o mapa mostra um quadro por município (coordenadas da sede em `data/bairros.json`, chave `todos`).
 - Em Paraipaba 2022, as seções 208 e 212 foram agregadas às seções 152 (Pedrinhas) e 162 (Camburão); os votos delas aparecem nas seções principais, conforme os boletins de urna.
 
 ## Roteiro

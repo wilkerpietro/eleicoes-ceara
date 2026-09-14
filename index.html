@@ -27,14 +27,17 @@
       <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
       <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></symbol>
       <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+      <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+      <symbol id="i-fechar" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
     </defs>
   </svg>
 
   <div class="app">
-    <aside class="lateral">
+    <aside id="menu-lateral" class="lateral">
       <div class="marca">
         <span class="logo" aria-hidden="true">CE</span>
         <span class="marca-nome">Eleições Ceará</span>
+        <button id="btn-fechar-menu" type="button" class="btn-icone btn-fechar-menu" title="Fechar menu" aria-label="Fechar menu"><svg class="icone"><use href="#i-fechar"/></svg></button>
       </div>
 
       <nav class="nav" aria-label="Eleição e cargos">
@@ -54,7 +57,7 @@
             <svg class="icone"><use href="#i-chart"/></svg><span>Tabelas</span>
           </button>
           <button type="button" class="nav-item" data-tela="mapa">
-            <svg class="icone"><use href="#i-map"/></svg><span>Mapa por bairro</span>
+            <svg class="icone"><use href="#i-map"/></svg><span>Mapa dos votos</span>
           </button>
         </div>
         <div class="nav-titulo">Eleições 2026</div>
@@ -64,9 +67,6 @@
           </button>
           <button type="button" class="nav-item" data-tela="estimativa">
             <svg class="icone"><use href="#i-trophy"/></svg><span>Estimativa</span>
-          </button>
-          <button type="button" class="nav-item" data-tela="candidatos26">
-            <svg class="icone"><use href="#i-flag"/></svg><span>Candidatos 2026</span>
           </button>
           <button type="button" class="nav-item" data-tela="usuarios" hidden>
             <svg class="icone"><use href="#i-check"/></svg><span>Usuários</span>
@@ -82,8 +82,11 @@
       </div>
     </aside>
 
+    <div id="menu-fundo" class="menu-fundo" aria-hidden="true"></div>
+
     <main class="conteudo">
       <div class="barra-topo">
+        <button id="btn-menu" type="button" class="btn-icone btn-menu" title="Menu" aria-label="Abrir menu" aria-controls="menu-lateral" aria-expanded="false"><svg class="icone"><use href="#i-menu"/></svg></button>
         <button id="btn-voltar" type="button" class="btn-icone" title="Voltar"><svg class="icone"><use href="#i-left"/></svg></button>
         <button id="btn-avancar" type="button" class="btn-icone" title="Avançar"><svg class="icone"><use href="#i-right"/></svg></button>
         <span class="separador"></span>
@@ -123,7 +126,7 @@
             <span id="dica-mapa" class="dica"></span>
           </div>
           <div id="mapa-aviso" class="vazio" hidden></div>
-          <div id="mapa" class="mapa" role="application" aria-label="Mapa dos bairros do município"></div>
+          <div id="mapa" class="mapa" role="application" aria-label="Mapa dos votos por bairro ou por município"></div>
           <div id="legenda-mapa" class="legenda-mapa"></div>
         </section>
         <section class="painel painel-bairro">
