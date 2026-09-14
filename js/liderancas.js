@@ -20,7 +20,7 @@
   let tse2026 = null;   // candidatos de 2026 do TSE
   let ctx = null;       // contexto passado pelo app: { el, tela, cdMun, nomeMun, municipios, candidatos2026, fotos2026 }
   const cache = {};     // por município: listas de referência (vereadores/prefeitos 2024, deputados 2022)
-  const ui = { modal: null, editando: null, busca: '', candidato: '', abaEst: 'federal', cargo26: '', busca26: '', novoCandidato: false, aviso: '' };
+  const ui = { modal: null, editando: null, busca: '', candidato: '', abaEst: 'federal', cargo26: '', busca26: '', novoCandidato: false, aviso: '', erroSync: '', erroLogin: '' };
 
   // ---------- utilidades ----------
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -44,8 +44,22 @@
   // ---------- persistência ----------
   function vazio() { return { versao: 1, liderancas: [], candidatos2026: [], importados: {}, atualizadoEm: agora() }; }
 
+  // Modo nuvem (Supabase, ver js/sync.js): as lideranças são carregadas por município e cada
+  // alteração é gravada linha a linha; modo local: tudo no localStorage.
+  const nuvem = () => !!(global.Sync && global.Sync.configurado());
+  const municipiosCarregados = new Set();
+  const snapshot = { liderancas: new Map(), candidatos: new Map(), importados: new Map() }; // último estado gravado na nuvem
+  let gravando = null;
+
   async function carregar() {
     if (dados) return dados;
+    if (nuvem()) {
+      dados = vazio();
+      try {
+        for (const c of await global.Sync.carregarCandidatos()) { dados.candidatos2026.push(c); snapshot.candidatos.set(c.id, JSON.stringify(c)); }
+      } catch (e) { ui.erroSync = 'Não foi possível ler os candidatos manuais: ' + e.message; }
+      return dados;
+    }
     try {
       const salvo = localStorage.getItem(CHAVE);
       if (salvo) { dados = Object.assign(vazio(), JSON.parse(salvo)); return dados; }
@@ -58,9 +72,51 @@
     return dados;
   }
 
+  /** Modo nuvem: traz as lideranças e a marca de importação de um município (uma vez por sessão). */
+  async function carregarMunicipio(cd) {
+    if (!nuvem() || municipiosCarregados.has(cd)) return;
+    const [lista, marca] = await Promise.all([global.Sync.carregarLiderancas(cd), global.Sync.carregarImportado(cd)]);
+    dados.liderancas = dados.liderancas.filter((l) => l.cd_mun !== cd).concat(lista);
+    for (const l of lista) snapshot.liderancas.set(l.id, JSON.stringify(l));
+    if (marca) { dados.importados[cd] = marca; snapshot.importados.set(cd, marca); }
+    municipiosCarregados.add(cd);
+  }
+
   function salvar() {
     dados.atualizadoEm = agora();
-    try { localStorage.setItem(CHAVE, JSON.stringify(dados)); } catch (e) { console.warn('Não foi possível salvar no navegador:', e); }
+    if (!nuvem()) {
+      try { localStorage.setItem(CHAVE, JSON.stringify(dados)); } catch (e) { console.warn('Não foi possível salvar no navegador:', e); }
+      return;
+    }
+    // grava só o que mudou desde a última gravação (serializado, sem concorrência)
+    gravando = (gravando || Promise.resolve()).then(gravarDiferencas).catch((e) => {
+      ui.erroSync = 'Falha ao gravar na nuvem: ' + e.message;
+      render();
+    });
+  }
+
+  async function gravarDiferencas() {
+    const S = global.Sync;
+    const atuais = new Map(dados.liderancas.map((l) => [l.id, JSON.stringify(l)]));
+    const mudadas = dados.liderancas.filter((l) => snapshot.liderancas.get(l.id) !== atuais.get(l.id));
+    const removidas = Array.from(snapshot.liderancas.keys()).filter((id) => !atuais.has(id));
+    const candAtuais = new Map(dados.candidatos2026.map((c) => [c.id, JSON.stringify(c)]));
+    const candMudados = dados.candidatos2026.filter((c) => snapshot.candidatos.get(c.id) !== candAtuais.get(c.id));
+    const candRemovidos = Array.from(snapshot.candidatos.keys()).filter((id) => !candAtuais.has(id));
+    const marcas = Object.entries(dados.importados).filter(([cd, m]) => snapshot.importados.get(cd) !== String(m));
+    if (!mudadas.length && !removidas.length && !candMudados.length && !candRemovidos.length && !marcas.length) return;
+    if (!S.usuario()) throw new Error('entre com seu e-mail e senha para gravar.');
+    await S.gravarLiderancas(mudadas);
+    await S.excluirLiderancas(removidas);
+    await S.gravarCandidatos(candMudados);
+    await S.excluirCandidatos(candRemovidos);
+    for (const [cd, m] of marcas) await S.marcarImportado(cd, m);
+    for (const l of mudadas) snapshot.liderancas.set(l.id, atuais.get(l.id));
+    for (const id of removidas) snapshot.liderancas.delete(id);
+    for (const c of candMudados) snapshot.candidatos.set(c.id, candAtuais.get(c.id));
+    for (const id of candRemovidos) snapshot.candidatos.delete(id);
+    for (const [cd, m] of marcas) snapshot.importados.set(cd, String(m));
+    if (ui.erroSync) { ui.erroSync = ''; render(); }
   }
 
   function exportar() {
@@ -236,6 +292,7 @@
   async function importarVereadores(cd) {
     const marca = dados.importados[cd]; // true = só vereadores (versão antiga); 'completo' = vereadores e prefeitos
     if (marca === 'completo') return 0;
+    if (nuvem() && !global.Sync.usuario()) return 0; // sem login não há como gravar; importa depois de entrar
     const ref = await referencias(cd);
     const existentes = new Set(dados.liderancas.filter((l) => l.cd_mun === cd && l.sq).map((l) => l.sq));
     let n = 0;
@@ -326,13 +383,21 @@
     if (!ctx || !dados) return;
     const tela = ctx.tela || 'liderancas';
     const lista = semMunicipio() ? [] : doMunicipio(ctx.cdMun);
-    const aviso = ui.aviso ? '<section class="painel la-aviso"><span>' + esc(ui.aviso) + '</span><button type="button" class="btn btn-mini" data-la="fechar-aviso">OK</button></section>' : '';
+    const aviso = (ui.aviso ? '<section class="painel la-aviso"><span>' + esc(ui.aviso) + '</span><button type="button" class="btn btn-mini" data-la="fechar-aviso">OK</button></section>' : '') +
+      (ui.erroSync ? '<section class="painel la-aviso la-erro-sync"><span>' + esc(ui.erroSync) + '</span><button type="button" class="btn btn-mini" data-la="fechar-erro">OK</button></section>' : '');
+    const usuario = nuvem() ? global.Sync.usuario() : null;
+    const status = '<div class="la-status">' + (nuvem()
+      ? (usuario
+        ? '<span><span class="ponto"></span>Conectado como ' + esc(usuario.email) + ' · alterações gravadas na nuvem</span><button type="button" class="btn btn-mini" data-la="definir-senha">Definir senha</button><button type="button" class="btn btn-mini" data-la="sair">Sair</button>'
+        : '<span><span class="ponto off"></span>Somente leitura · entre para editar</span><button type="button" class="btn btn-mini btn-primario" data-la="entrar">Entrar</button>')
+      : '<span><span class="ponto local"></span>Dados salvos neste navegador (sem banco na nuvem configurado)</span>') + '</div>';
+    ctx.el.classList.toggle('la-somente-leitura', nuvem() && !usuario);
     let corpo;
     if (tela === 'candidatos') corpo = renderCandidatos2026();
     else if (semMunicipio()) corpo = '<section class="painel"><div class="vazio">Escolha um município na barra lateral para ' + (tela === 'estimativa' ? 'ver a estimativa de votos' : 'mapear as lideranças') + ' dele.</div></section>';
     else if (tela === 'estimativa') corpo = renderEstimativa(ctx.cdMun, lista);
     else corpo = renderLiderancas(ctx.cdMun, lista);
-    ctx.el.innerHTML = aviso + corpo + renderModal();
+    ctx.el.innerHTML = status + aviso + corpo + renderModal();
     document.body.classList.toggle('la-modal-aberto', !!ui.modal);
   }
 
@@ -363,6 +428,35 @@
   // ---------- popup de detalhes / edição ----------
   function renderModal() {
     if (!ui.modal) return '';
+    if (ui.modal === 'login') {
+      return '<div class="la-modal-fundo" data-la="fechar-modal"><div class="la-modal" role="dialog" aria-modal="true">' +
+        '<button type="button" class="la-modal-fechar" data-la="fechar-modal" title="Fechar">×</button>' +
+        '<div class="la-modal-topo"><h2>Entrar</h2></div>' +
+        '<form data-la="form-login" class="la-login">' +
+        '<label class="campo"><span>E-mail</span><input name="email" type="email" required autocomplete="username"></label>' +
+        '<label class="campo"><span>Senha</span><input name="senha" type="password" required autocomplete="current-password"></label>' +
+        (ui.erroLogin ? '<div class="erro">' + esc(ui.erroLogin) + '</div>' : '') +
+        '<div class="la-form-acoes"><button type="submit" class="btn btn-primario">Entrar</button><button type="button" class="btn" data-la="fechar-modal">Cancelar</button></div>' +
+        '</form>' +
+        '<form data-la="form-link" class="la-login la-login-link">' +
+        '<div class="detalhe-sub">Ou receba um link de acesso por e-mail</div>' +
+        '<label class="campo"><span>E-mail cadastrado</span><input name="email" type="email" required autocomplete="username"></label>' +
+        (ui.avisoLink ? '<div class="dica">' + esc(ui.avisoLink) + '</div>' : '') +
+        '<div class="la-form-acoes"><button type="submit" class="btn">Enviar link</button></div>' +
+        '<span class="dica">Só e-mails convidados pelo administrador (painel do Supabase › Authentication › Users) conseguem entrar. Depois de entrar pelo link, use "Definir senha" para acessar com senha nas próximas vezes.</span>' +
+        '</form></div></div>';
+    }
+    if (ui.modal === 'senha') {
+      return '<div class="la-modal-fundo" data-la="fechar-modal"><div class="la-modal" role="dialog" aria-modal="true">' +
+        '<button type="button" class="la-modal-fechar" data-la="fechar-modal" title="Fechar">×</button>' +
+        '<div class="la-modal-topo"><h2>Definir senha</h2></div>' +
+        '<form data-la="form-senha" class="la-login">' +
+        '<label class="campo"><span>Nova senha (mínimo 6 caracteres)</span><input name="senha" type="password" required minlength="6" autocomplete="new-password"></label>' +
+        '<label class="campo"><span>Repita a senha</span><input name="senha2" type="password" required minlength="6" autocomplete="new-password"></label>' +
+        (ui.erroLogin ? '<div class="erro">' + esc(ui.erroLogin) + '</div>' : '') +
+        '<div class="la-form-acoes"><button type="submit" class="btn btn-primario">Salvar senha</button><button type="button" class="btn" data-la="fechar-modal">Cancelar</button></div>' +
+        '</form></div></div>';
+    }
     const nova = ui.modal === 'nova';
     const l = nova ? null : porId(ui.modal);
     if (!nova && !l) { ui.modal = null; return ''; }
@@ -639,6 +733,10 @@
     else if (acao === 'exportar') exportar();
     else if (acao === 'cargo26') { ui.cargo26 = alvo.dataset.valor; render(); }
     else if (acao === 'fechar-aviso') { ui.aviso = ''; render(); }
+    else if (acao === 'fechar-erro') { ui.erroSync = ''; render(); }
+    else if (acao === 'entrar') { ui.modal = 'login'; ui.erroLogin = ''; render(); const i = ctx.el.querySelector('.la-login input[name="email"]'); if (i) i.focus(); }
+    else if (acao === 'sair') { global.Sync.sair().then(() => render()); }
+    else if (acao === 'definir-senha') { ui.modal = 'senha'; ui.erroLogin = ''; render(); const i = ctx.el.querySelector('.la-login input[name="senha"]'); if (i) i.focus(); }
     else if (acao === 'novo-cand-form') { ui.novoCandidato = CARGOS_APOIO[1]; render(); const i = ctx.el.querySelector('.la-novo-cand input[name="nome"]'); if (i) i.focus(); }
     else if (acao === 'aba-est') { ui.abaEst = alvo.dataset.valor; ui.novoCandidato = false; render(); }
     else if (acao === 'detalhar') { ui.candidato = ui.candidato === alvo.dataset.id ? '' : alvo.dataset.id; render(); }
@@ -701,6 +799,39 @@
     if (!form) return;
     ev.preventDefault();
     const tipo = form.dataset.la;
+    if (tipo === 'form-link') {
+      const f = new FormData(form);
+      const botao = form.querySelector('button[type="submit"]');
+      if (botao) { botao.disabled = true; botao.textContent = 'Enviando…'; }
+      global.Sync.entrarLink(String(f.get('email') || '').trim())
+        .then(() => { ui.avisoLink = 'Link enviado. Abra o e-mail e clique no link para entrar (confira a caixa de spam).'; ui.erroLogin = ''; render(); })
+        .catch((e) => { ui.avisoLink = ''; ui.erroLogin = e.message; render(); });
+      return;
+    }
+    if (tipo === 'form-senha') {
+      const f = new FormData(form);
+      const s1 = String(f.get('senha') || '');
+      const s2 = String(f.get('senha2') || '');
+      if (s1 !== s2) { ui.erroLogin = 'As senhas não conferem.'; render(); return; }
+      global.Sync.definirSenha(s1)
+        .then(() => { ui.modal = null; ui.erroLogin = ''; ui.aviso = 'Senha definida. Nas próximas vezes entre com e-mail e senha.'; render(); })
+        .catch((e) => { ui.erroLogin = e.message; render(); });
+      return;
+    }
+    if (tipo === 'form-login') {
+      const f = new FormData(form);
+      const botao = form.querySelector('button[type="submit"]');
+      if (botao) { botao.disabled = true; botao.textContent = 'Entrando…'; }
+      global.Sync.entrar(String(f.get('email') || '').trim(), String(f.get('senha') || ''))
+        .then(async () => {
+          ui.modal = null; ui.erroLogin = '';
+          // com login, os candidatos de 2024 do município podem ser importados se ainda não foram
+          if (!semMunicipio()) await importarVereadores(ctx.cdMun);
+          render();
+        })
+        .catch((e) => { ui.erroLogin = e.message; render(); });
+      return;
+    }
     if (tipo === 'form') salvarFormulario(form);
     else if (tipo === 'form-cand') {
       const formLid = ctx.el.querySelector('form[data-la="form"]');
@@ -756,15 +887,25 @@
     ligarEventos(ctx.el);
     if (telaAnterior !== ctx.tela || munAnterior !== ctx.cdMun) { ui.modal = null; ui.editando = null; ui.novoCandidato = false; }
     ctx.el.innerHTML = '<section class="painel"><div class="vazio">Carregando…</div></section>';
+    if (global.Sync) {
+      await global.Sync.iniciar();
+      if (!ouvindoUsuario) { ouvindoUsuario = true; global.Sync.aoMudarUsuario(() => render()); }
+    }
     await Promise.all([carregar(), carregarTse2026()]);
-    const unificados = unificarConhecidos();
-    if (unificados.length) ui.aviso = 'Unificados com o cadastro do TSE: ' + unificados.join('; ') + '.';
+    if (!semMunicipio()) {
+      try { await carregarMunicipio(ctx.cdMun); } catch (e) { ui.erroSync = 'Não foi possível ler as lideranças de ' + ctx.nomeMun + ': ' + e.message; }
+    }
+    if (!nuvem() || global.Sync.usuario()) {
+      const unificados = unificarConhecidos();
+      if (unificados.length) ui.aviso = 'Unificados com o cadastro do TSE: ' + unificados.join('; ') + '.';
+    }
     if (!semMunicipio()) {
       await referencias(ctx.cdMun);
       await importarVereadores(ctx.cdMun);
     }
     render();
   }
+  let ouvindoUsuario = false;
 
   global.Liderancas = { mostrar, exportar };
 })(window);

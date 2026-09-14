@@ -1,0 +1,7 @@
+{
+  "_comentario": "Configuração do banco na nuvem (Supabase) para o mapeamento de lideranças. A 'anonKey' é a chave pública (publishable) do projeto, segura para ficar no site; as regras de acesso (RLS) é que protegem os dados. Com url e anonKey vazios, o site salva no navegador (localStorage).",
+  "supabase": {
+    "url": "https://nffbqneshhygrzsintxe.supabase.co",
+    "anonKey": "sb_publishable_cMunNorLhS3NhZ4mMyyqDQ_ddXs-bt_"
+  }
+}

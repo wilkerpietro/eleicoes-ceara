@@ -428,3 +428,16 @@ body.la-modal-aberto { overflow: hidden; }
 .la-cab-lista h2 { margin-right: 4px; }
 .la-rodape-acoes { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 10px; }
 .la-rodape-acoes .dica { margin-right: auto; }
+
+/* ---------- sincronização / login ---------- */
+.la-status { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; font-size: 0.85rem; color: var(--texto-suave); }
+.la-status .ponto { width: 8px; height: 8px; border-radius: 50%; background: var(--verde); display: inline-block; margin-right: 6px; }
+.la-status .ponto.off { background: var(--laranja); }
+.la-status .ponto.local { background: var(--texto-fraca); }
+.la-login { display: flex; flex-direction: column; gap: 10px; max-width: 380px; }
+.la-login input { font: inherit; padding: 9px 10px; border: 1px solid var(--borda-forte); border-radius: 9px; }
+.la-login .erro { color: var(--vermelho); font-size: 0.85rem; }
+.la-erro-sync { background: #fdecec; border-color: #f3b4b4; color: #9f1d1d; }
+.la-somente-leitura .btn-primario, .la-somente-leitura [data-la="excluir"], .la-somente-leitura [data-la="remover-grupo"], .la-somente-leitura form[data-la="form-add"] { display: none !important; }
+.la-somente-leitura .la-est { pointer-events: none; background: var(--painel-suave); color: var(--texto-suave); }
+.la-login-link { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--borda); }

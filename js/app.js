@@ -1017,7 +1017,15 @@
       manifesto = await resp.json();
       estado.eleicao = manifesto.eleicoes[0].id;
       estado.mun = manifesto.municipio_padrao || '';
+      // link de convite/acesso do Supabase (tokens no hash): estabelece a sessão antes de mexer na URL e abre Lideranças
+      let veioDoLinkDeAcesso = false;
+      if (window.Sync && /access_token=|type=(invite|magiclink|recovery|signup)/.test(location.hash)) {
+        await Sync.iniciar();
+        veioDoLinkDeAcesso = true;
+        history.replaceState(null, '', location.pathname + location.search);
+      }
       lerHash();
+      if (veioDoLinkDeAcesso) estado.tela = 'liderancas';
       await carregarAuxiliares();
       await trocarEleicao(estado.eleicao, estado.mun);
     } catch (e) {
