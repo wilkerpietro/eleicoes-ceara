@@ -2,6 +2,8 @@
 
 Consulta de votação por **município**, **bairro**, **local de votação** e **seção eleitoral** nos 184 municípios do Ceará, a partir dos dados abertos do TSE. O projeto nasceu como "Eleições Paraipaba" e Paraipaba continua sendo o município padrão e o único com bairros geolocalizados.
 
+Site publicado: **https://wilkerpietro.github.io/eleicoes-ceara/**
+
 Site estático, sem dependências: HTML, CSS e JavaScript puro lendo os CSVs da pasta `data/` diretamente no navegador. Pode ser publicado no GitHub Pages sem nenhuma etapa de build.
 
 ## O que já funciona
@@ -142,7 +144,7 @@ powershell -ExecutionPolicy Bypass -File scripts/reduzir-fotos.ps1 -Pasta data/2
 - [x] Etapa 2: mapa interativo com a geolocalização de cada bairro (Leaflet).
 - [x] Etapa 3: todos os municípios do Ceará nas Eleições 2022 (todos os cargos) e 2024 (Prefeito e Vereador), com seções e bairros do TRE-CE, cadastro e fotos do TSE.
 - [ ] Coordenadas de bairros para outros municípios (mapa).
-- [ ] Publicar no GitHub Pages.
+- [x] Publicado no GitHub Pages: https://wilkerpietro.github.io/eleicoes-ceara/ (repositório https://github.com/wilkerpietro/eleicoes-ceara).
 
 ## Fonte dos dados
 
