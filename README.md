@@ -16,7 +16,7 @@ Site estático, sem dependências: HTML, CSS e JavaScript puro lendo os CSVs da 
 
 ## Mapa por bairro
 
-- Tela **Mapa por bairro**: em cada bairro, um mini gráfico de barras com os 3 mais votados (foto no topo da barra, quantidade de votos e barra na cor do partido, altura relativa ao 1º do bairro); com candidato selecionado, uma barra só com os votos dele. Clicar no bairro abre o painel de detalhes com a pizza de todos os candidatos, os totais e a lista de mais votados ("Ver todos"). Clicar no bairro abre o painel de detalhes (pizza com todos os candidatos, totais e lista com "Ver todos"); sem bairro selecionado, o painel mostra "Detalhes gerais" do município.
+- Tela **Mapa por bairro**: em cada bairro, um mini gráfico de barras com os 3 mais votados (foto no topo da barra, quantidade de votos e barra na cor do partido, altura relativa ao 1º do bairro); com candidato selecionado, uma barra só com os votos dele. Clicar no bairro abre o painel de detalhes (pizza com todos os candidatos, totais e lista com "Ver todos"); sem bairro selecionado, o painel mostra "Detalhes gerais" do município.
 - As coordenadas ficam em `data/bairros.json`, por código TSE do município. Hoje só Paraipaba tem bairros e coordenadas (planilha em `data/raw/`). Para os demais municípios, os dados abertos do TSE não trazem o bairro dos locais de votação, então a tela informa isso e as tabelas usam local de votação e seção.
 - O mapa usa [Leaflet](https://leafletjs.com/) (CDN) com o mapa base do [OpenStreetMap](https://www.openstreetmap.org/copyright).
 
