@@ -51,6 +51,31 @@
     usuarioAtual = null;
   }
 
+  /** Cria a conta (e-mail e senha). O acesso só é liberado quando um administrador aprova o perfil. */
+  async function cadastrar(nome, email, senha) {
+    const { data, error } = await cliente.auth.signUp({ email, password: senha, options: { data: { nome } } });
+    if (error) throw new Error(traduzir(error.message));
+    if (data && data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) throw new Error('Este e-mail já está cadastrado. Use "Entrar".');
+    usuarioAtual = data.user || usuarioAtual;
+    return data;
+  }
+
+  /** Perfil do usuário conectado: { id, email, nome, aprovado, papel } ou null. */
+  async function perfil() {
+    if (!usuarioAtual) return null;
+    const { data, error } = await cliente.from('perfis').select('*').eq('id', usuarioAtual.id).maybeSingle();
+    if (error) { console.warn('perfil:', error.message); return null; }
+    return data;
+  }
+
+  async function listarPerfis() {
+    return checar(await cliente.from('perfis').select('*').order('aprovado', { ascending: true }).order('criado_em', { ascending: false }));
+  }
+
+  async function aprovarPerfil(id, aprovado) {
+    checar(await cliente.from('perfis').update({ aprovado, aprovado_em: aprovado ? new Date().toISOString() : null, aprovado_por: usuarioAtual ? usuarioAtual.email : null }).eq('id', id));
+  }
+
   /** Envia um link de acesso por e-mail (só para usuários já cadastrados no painel). */
   async function entrarLink(email) {
     const { error } = await cliente.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: global.location.origin + global.location.pathname } });
@@ -66,6 +91,10 @@
   function traduzir(msg) {
     const m = String(msg || '');
     if (/invalid login credentials/i.test(m)) return 'E-mail ou senha incorretos.';
+    if (/already registered|already been registered/i.test(m)) return 'Este e-mail já está cadastrado. Use "Entrar".';
+    if (/password should be at least|weak password/i.test(m)) return 'Senha muito curta: use pelo menos 6 caracteres.';
+    if (/signups not allowed/i.test(m)) return 'Cadastro desativado. Fale com o administrador.';
+    if (/invalid email|unable to validate email/i.test(m)) return 'E-mail inválido.';
     if (/email not confirmed/i.test(m)) return 'E-mail ainda não confirmado.';
     if (/rate limit/i.test(m)) return 'Muitas tentativas; aguarde um instante.';
     if (/row-level security|permission denied|401|403/i.test(m)) return 'Sem permissão para gravar: entre com um usuário autorizado.';
@@ -123,6 +152,7 @@
 
   global.Sync = {
     iniciar, configurado, usuario, aoMudarUsuario, entrar, entrarLink, definirSenha, sair,
+    cadastrar, perfil, listarPerfis, aprovarPerfil,
     carregarLiderancas, carregarCandidatos, carregarImportado,
     gravarLiderancas, excluirLiderancas, gravarCandidatos, excluirCandidatos, marcarImportado,
   };

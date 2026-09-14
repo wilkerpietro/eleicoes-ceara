@@ -20,7 +20,13 @@
   let tse2026 = null;   // candidatos de 2026 do TSE
   let ctx = null;       // contexto passado pelo app: { el, tela, cdMun, nomeMun, municipios, candidatos2026, fotos2026 }
   const cache = {};     // por município: listas de referência (vereadores/prefeitos 2024, deputados 2022)
-  const ui = { modal: null, editando: null, busca: '', candidato: '', abaEst: 'federal', cargo26: '', busca26: '', novoCandidato: false, aviso: '', erroSync: '', erroLogin: '' };
+  const ui = { modal: null, editando: null, busca: '', candidato: '', abaEst: 'federal', cargo26: '', busca26: '', novoCandidato: false, aviso: '', erroSync: '', erroLogin: '', abaLogin: 'entrar', perfis: null };
+  let perfilAtual = null; // perfil do usuário conectado no modo nuvem: { id, email, nome, aprovado, papel }
+  const nuvemAtiva = () => !!(global.Sync && global.Sync.configurado());
+  const usuarioLogado = () => (nuvemAtiva() ? global.Sync.usuario() : null);
+  const ehAdmin = () => nuvemAtiva() && !!perfilAtual && perfilAtual.aprovado && perfilAtual.papel === 'admin';
+  /** Sem nuvem, tudo liberado; com nuvem, só usuário conectado e aprovado pelo administrador. */
+  const acessoLiberado = () => !nuvemAtiva() || (!!usuarioLogado() && !!perfilAtual && !!perfilAtual.aprovado);
 
   // ---------- utilidades ----------
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -385,15 +391,19 @@
     const lista = semMunicipio() ? [] : doMunicipio(ctx.cdMun);
     const aviso = (ui.aviso ? '<section class="painel la-aviso"><span>' + esc(ui.aviso) + '</span><button type="button" class="btn btn-mini" data-la="fechar-aviso">OK</button></section>' : '') +
       (ui.erroSync ? '<section class="painel la-aviso la-erro-sync"><span>' + esc(ui.erroSync) + '</span><button type="button" class="btn btn-mini" data-la="fechar-erro">OK</button></section>' : '');
-    const usuario = nuvem() ? global.Sync.usuario() : null;
-    const status = '<div class="la-status">' + (nuvem()
+    const usuario = usuarioLogado();
+    const status = '<div class="la-status">' + (nuvemAtiva()
       ? (usuario
-        ? '<span><span class="ponto"></span>Conectado como ' + esc(usuario.email) + ' · alterações gravadas na nuvem</span><button type="button" class="btn btn-mini" data-la="definir-senha">Definir senha</button><button type="button" class="btn btn-mini" data-la="sair">Sair</button>'
-        : '<span><span class="ponto off"></span>Somente leitura · entre para editar</span><button type="button" class="btn btn-mini btn-primario" data-la="entrar">Entrar</button>')
+        ? '<span><span class="ponto' + (acessoLiberado() ? '' : ' off') + '"></span>' + esc((perfilAtual && perfilAtual.nome) || usuario.email) +
+          (ehAdmin() ? ' · administrador' : (acessoLiberado() ? ' · acesso liberado' : ' · aguardando autorização')) + '</span>' +
+          '<button type="button" class="btn btn-mini" data-la="definir-senha">Trocar senha</button><button type="button" class="btn btn-mini" data-la="sair">Sair</button>'
+        : '<span><span class="ponto off"></span>Acesso restrito · entre ou crie sua conta</span><button type="button" class="btn btn-mini btn-primario" data-la="entrar">Entrar</button>')
       : '<span><span class="ponto local"></span>Dados salvos neste navegador (sem banco na nuvem configurado)</span>') + '</div>';
-    ctx.el.classList.toggle('la-somente-leitura', nuvem() && !usuario);
+    ctx.el.classList.toggle('la-somente-leitura', !acessoLiberado());
     let corpo;
     if (tela === 'candidatos') corpo = renderCandidatos2026();
+    else if (!acessoLiberado()) corpo = renderBloqueado(usuario);
+    else if (tela === 'usuarios') corpo = ehAdmin() ? renderUsuarios() : '<section class="painel"><div class="vazio">Só administradores veem os usuários.</div></section>';
     else if (semMunicipio()) corpo = '<section class="painel"><div class="vazio">Escolha um município na barra lateral para ' + (tela === 'estimativa' ? 'ver a estimativa de votos' : 'mapear as lideranças') + ' dele.</div></section>';
     else if (tela === 'estimativa') corpo = renderEstimativa(ctx.cdMun, lista);
     else corpo = renderLiderancas(ctx.cdMun, lista);
@@ -429,22 +439,31 @@
   function renderModal() {
     if (!ui.modal) return '';
     if (ui.modal === 'login') {
+      const abas = '<div class="segmentado la-abas la-abas-login">' +
+        '<button type="button" class="' + (ui.abaLogin === 'entrar' ? 'ativo' : '') + '" data-la="aba-login" data-valor="entrar">Entrar</button>' +
+        '<button type="button" class="' + (ui.abaLogin === 'cadastrar' ? 'ativo' : '') + '" data-la="aba-login" data-valor="cadastrar">Criar conta</button></div>';
+      const erro = ui.erroLogin ? '<div class="erro">' + esc(ui.erroLogin) + '</div>' : '';
+      const corpo = ui.abaLogin === 'cadastrar'
+        ? '<form data-la="form-cadastro" class="la-login">' +
+          '<label class="campo"><span>Nome</span><input name="nome" required autocomplete="name" placeholder="Como quer ser identificado"></label>' +
+          '<label class="campo"><span>E-mail</span><input name="email" type="email" required autocomplete="username"></label>' +
+          '<label class="campo"><span>Senha (mínimo 6 caracteres)</span><input name="senha" type="password" required minlength="6" autocomplete="new-password"></label>' +
+          '<label class="campo"><span>Repita a senha</span><input name="senha2" type="password" required minlength="6" autocomplete="new-password"></label>' + erro +
+          '<div class="la-form-acoes"><button type="submit" class="btn btn-primario">Criar conta</button><button type="button" class="btn" data-la="fechar-modal">Cancelar</button></div>' +
+          '<span class="dica">Depois de criar a conta, aguarde a autorização do administrador para acessar o mapeamento.</span></form>'
+        : '<form data-la="form-login" class="la-login">' +
+          '<label class="campo"><span>E-mail</span><input name="email" type="email" required autocomplete="username"></label>' +
+          '<label class="campo"><span>Senha</span><input name="senha" type="password" required autocomplete="current-password"></label>' + erro +
+          '<div class="la-form-acoes"><button type="submit" class="btn btn-primario">Entrar</button><button type="button" class="btn" data-la="fechar-modal">Cancelar</button></div></form>' +
+          '<form data-la="form-link" class="la-login la-login-link">' +
+          '<div class="detalhe-sub">Esqueceu a senha? Receba um link de acesso por e-mail</div>' +
+          '<label class="campo"><span>E-mail cadastrado</span><input name="email" type="email" required autocomplete="username"></label>' +
+          (ui.avisoLink ? '<div class="dica">' + esc(ui.avisoLink) + '</div>' : '') +
+          '<div class="la-form-acoes"><button type="submit" class="btn">Enviar link</button></div>' +
+          '<span class="dica">Depois de entrar pelo link, use "Trocar senha" para definir uma nova.</span></form>';
       return '<div class="la-modal-fundo" data-la="fechar-modal"><div class="la-modal" role="dialog" aria-modal="true">' +
         '<button type="button" class="la-modal-fechar" data-la="fechar-modal" title="Fechar">×</button>' +
-        '<div class="la-modal-topo"><h2>Entrar</h2></div>' +
-        '<form data-la="form-login" class="la-login">' +
-        '<label class="campo"><span>E-mail</span><input name="email" type="email" required autocomplete="username"></label>' +
-        '<label class="campo"><span>Senha</span><input name="senha" type="password" required autocomplete="current-password"></label>' +
-        (ui.erroLogin ? '<div class="erro">' + esc(ui.erroLogin) + '</div>' : '') +
-        '<div class="la-form-acoes"><button type="submit" class="btn btn-primario">Entrar</button><button type="button" class="btn" data-la="fechar-modal">Cancelar</button></div>' +
-        '</form>' +
-        '<form data-la="form-link" class="la-login la-login-link">' +
-        '<div class="detalhe-sub">Ou receba um link de acesso por e-mail</div>' +
-        '<label class="campo"><span>E-mail cadastrado</span><input name="email" type="email" required autocomplete="username"></label>' +
-        (ui.avisoLink ? '<div class="dica">' + esc(ui.avisoLink) + '</div>' : '') +
-        '<div class="la-form-acoes"><button type="submit" class="btn">Enviar link</button></div>' +
-        '<span class="dica">Só e-mails convidados pelo administrador (painel do Supabase › Authentication › Users) conseguem entrar. Depois de entrar pelo link, use "Definir senha" para acessar com senha nas próximas vezes.</span>' +
-        '</form></div></div>';
+        '<div class="la-modal-topo"><h2>' + (ui.abaLogin === 'cadastrar' ? 'Criar conta' : 'Entrar') + '</h2></div>' + abas + corpo + '</div></div>';
     }
     if (ui.modal === 'senha') {
       return '<div class="la-modal-fundo" data-la="fechar-modal"><div class="la-modal" role="dialog" aria-modal="true">' +
@@ -614,6 +633,40 @@
     return html;
   }
 
+  // ---------- acesso bloqueado / usuários ----------
+  function renderBloqueado(usuario) {
+    if (!usuario) {
+      return '<section class="painel la-bloqueado"><h2>Acesso restrito</h2>' +
+        '<p>O mapeamento de lideranças é reservado à equipe. Entre com seu e-mail e senha ou crie sua conta; o acesso é liberado depois que o administrador autorizar.</p>' +
+        '<div class="la-form-acoes"><button type="button" class="btn btn-primario" data-la="entrar">Entrar</button><button type="button" class="btn" data-la="criar-conta">Criar conta</button></div></section>';
+    }
+    return '<section class="painel la-bloqueado"><h2>Cadastro recebido</h2>' +
+      '<p>Sua conta <strong>' + esc(usuario.email) + '</strong> está aguardando a autorização do administrador. Quando for liberada, basta recarregar a página.</p>' +
+      '<div class="la-form-acoes"><button type="button" class="btn" data-la="recarregar-perfil">Verificar de novo</button><button type="button" class="btn" data-la="sair">Sair</button></div></section>';
+  }
+
+  function renderUsuarios() {
+    if (ui.perfis === null) {
+      ui.perfis = [];
+      global.Sync.listarPerfis().then((lista) => { ui.perfis = lista; render(); }).catch((e) => { ui.erroSync = 'Não foi possível listar os usuários: ' + e.message; render(); });
+      return '<section class="painel"><div class="vazio">Carregando usuários…</div></section>';
+    }
+    const fmtData = (d) => (d ? new Date(d).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '');
+    const pendentes = ui.perfis.filter((p) => !p.aprovado);
+    const linha = (p) => '<tr' + (p.aprovado ? '' : ' class="selecionado"') + '><td class="texto"><strong>' + esc(p.nome || '—') + '</strong><br><small class="dica">' + esc(p.email || '') + '</small></td>' +
+      '<td>' + fmtData(p.criado_em) + '</td>' +
+      '<td>' + (p.aprovado ? '<span class="selo eleito">Aprovado</span>' + (p.papel === 'admin' ? ' <span class="selo turno">Admin</span>' : '') : '<span class="selo suplente">Aguardando</span>') +
+        (p.aprovado && p.aprovado_por ? '<br><small class="dica">por ' + esc(p.aprovado_por) + ' em ' + fmtData(p.aprovado_em) + '</small>' : '') + '</td>' +
+      '<td class="la-td-acoes">' + (p.id === (usuarioLogado() || {}).id ? '<span class="dica">você</span>'
+        : (p.aprovado ? '<button type="button" class="btn btn-mini" data-la="revogar" data-id="' + p.id + '">Revogar acesso</button>'
+          : '<button type="button" class="btn btn-mini btn-primario" data-la="aprovar" data-id="' + p.id + '">Autorizar</button>')) + '</td></tr>';
+    return '<section class="painel"><div class="painel-cabecalho"><h2>Usuários</h2><span class="dica">' + ui.perfis.length + ' cadastrados · ' + pendentes.length + ' aguardando autorização</span>' +
+      '<button type="button" class="btn btn-mini" data-la="carregar-usuarios" style="margin-left:auto">Atualizar</button></div>' +
+      '<div class="tabela-scroll"><table class="la-tabela"><thead><tr><th>Usuário</th><th>Cadastro</th><th>Situação</th><th></th></tr></thead><tbody>' +
+      (ui.perfis.map(linha).join('') || '<tr><td colspan="4" class="vazio">Nenhum usuário cadastrado.</td></tr>') + '</tbody></table></div>' +
+      '<p class="dica">Quem cria conta no site entra como "Aguardando" e só acessa o mapeamento depois de autorizado aqui. Para dar poderes de administrador a alguém, altere o campo "papel" para "admin" na tabela perfis, no painel do Supabase.</p></section>';
+  }
+
   // ---------- tela Candidatos 2026 ----------
   function renderCandidatos2026() {
     const q = normalizar(ui.busca26);
@@ -734,7 +787,16 @@
     else if (acao === 'cargo26') { ui.cargo26 = alvo.dataset.valor; render(); }
     else if (acao === 'fechar-aviso') { ui.aviso = ''; render(); }
     else if (acao === 'fechar-erro') { ui.erroSync = ''; render(); }
-    else if (acao === 'entrar') { ui.modal = 'login'; ui.erroLogin = ''; render(); const i = ctx.el.querySelector('.la-login input[name="email"]'); if (i) i.focus(); }
+    else if (acao === 'entrar' || acao === 'criar-conta') { ui.modal = 'login'; ui.abaLogin = acao === 'criar-conta' ? 'cadastrar' : 'entrar'; ui.erroLogin = ''; render(); const i = ctx.el.querySelector('.la-login input'); if (i) i.focus(); }
+    else if (acao === 'aba-login') { ui.abaLogin = alvo.dataset.valor; ui.erroLogin = ''; render(); }
+    else if (acao === 'recarregar-perfil') { aoMudarSessao(); }
+    else if (acao === 'carregar-usuarios') { ui.perfis = null; render(); }
+    else if (acao === 'aprovar' || acao === 'revogar') {
+      const p = (ui.perfis || []).find((x) => x.id === alvo.dataset.id);
+      if (!p) return;
+      if (acao === 'revogar' && !confirm('Revogar o acesso de ' + (p.nome || p.email) + '?')) return;
+      global.Sync.aprovarPerfil(p.id, acao === 'aprovar').then(() => { ui.perfis = null; render(); }).catch((e) => { ui.erroSync = e.message; render(); });
+    }
     else if (acao === 'sair') { global.Sync.sair().then(() => render()); }
     else if (acao === 'definir-senha') { ui.modal = 'senha'; ui.erroLogin = ''; render(); const i = ctx.el.querySelector('.la-login input[name="senha"]'); if (i) i.focus(); }
     else if (acao === 'novo-cand-form') { ui.novoCandidato = CARGOS_APOIO[1]; render(); const i = ctx.el.querySelector('.la-novo-cand input[name="nome"]'); if (i) i.focus(); }
@@ -799,6 +861,18 @@
     if (!form) return;
     ev.preventDefault();
     const tipo = form.dataset.la;
+    if (tipo === 'form-cadastro') {
+      const f = new FormData(form);
+      const s1 = String(f.get('senha') || '');
+      const s2 = String(f.get('senha2') || '');
+      if (s1 !== s2) { ui.erroLogin = 'As senhas não conferem.'; render(); return; }
+      const botao = form.querySelector('button[type="submit"]');
+      if (botao) { botao.disabled = true; botao.textContent = 'Criando…'; }
+      global.Sync.cadastrar(String(f.get('nome') || '').trim(), String(f.get('email') || '').trim(), s1)
+        .then(() => { ui.modal = null; ui.erroLogin = ''; ui.aviso = 'Conta criada. Aguarde a autorização do administrador para acessar o mapeamento.'; return aoMudarSessao(); })
+        .catch((e) => { ui.erroLogin = e.message; render(); });
+      return;
+    }
     if (tipo === 'form-link') {
       const f = new FormData(form);
       const botao = form.querySelector('button[type="submit"]');
@@ -889,21 +963,35 @@
     ctx.el.innerHTML = '<section class="painel"><div class="vazio">Carregando…</div></section>';
     if (global.Sync) {
       await global.Sync.iniciar();
-      if (!ouvindoUsuario) { ouvindoUsuario = true; global.Sync.aoMudarUsuario(() => render()); }
+      if (!ouvindoUsuario) { ouvindoUsuario = true; global.Sync.aoMudarUsuario(() => { aoMudarSessao(); }); }
     }
+    if (nuvemAtiva()) perfilAtual = usuarioLogado() ? await global.Sync.perfil() : null;
+    atualizarMenuAdmin();
+    if (!acessoLiberado()) { if (!dados) dados = vazio(); await carregarTse2026(); render(); return; } // bloqueado: só a tela de entrada/cadastro
     await Promise.all([carregar(), carregarTse2026()]);
     if (!semMunicipio()) {
       try { await carregarMunicipio(ctx.cdMun); } catch (e) { ui.erroSync = 'Não foi possível ler as lideranças de ' + ctx.nomeMun + ': ' + e.message; }
     }
-    if (!nuvem() || global.Sync.usuario()) {
-      const unificados = unificarConhecidos();
-      if (unificados.length) ui.aviso = 'Unificados com o cadastro do TSE: ' + unificados.join('; ') + '.';
-    }
+    const unificados = unificarConhecidos();
+    if (unificados.length) ui.aviso = 'Unificados com o cadastro do TSE: ' + unificados.join('; ') + '.';
     if (!semMunicipio()) {
       await referencias(ctx.cdMun);
       await importarVereadores(ctx.cdMun);
     }
     render();
+  }
+
+  /** Recarrega o perfil após entrar/sair e retoma a carga dos dados quando o acesso estiver liberado. */
+  async function aoMudarSessao() {
+    perfilAtual = usuarioLogado() ? await global.Sync.perfil() : null;
+    atualizarMenuAdmin();
+    if (acessoLiberado() && ctx) { dados = null; municipiosCarregados.clear(); snapshot.liderancas.clear(); snapshot.candidatos.clear(); snapshot.importados.clear(); await mostrar(ctx); }
+    else render();
+  }
+
+  function atualizarMenuAdmin() {
+    const item = document.querySelector('.lateral [data-tela="usuarios"]');
+    if (item) item.hidden = !ehAdmin();
   }
   let ouvindoUsuario = false;
 

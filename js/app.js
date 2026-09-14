@@ -7,9 +7,9 @@
   const ORDEM_CARGOS = ['Presidente', 'Governador', 'Senador', 'Deputado Federal', 'Deputado Estadual', 'Prefeito', 'Vereador'];
   const ICONE_CARGO = { Presidente: 'i-flag', Governador: 'i-building', Senador: 'i-users', 'Deputado Federal': 'i-users', 'Deputado Estadual': 'i-users', Prefeito: 'i-building', Vereador: 'i-users' };
   const REPO_URL = 'https://github.com/wilkerpietro/eleicoes-ceara';
-  const TELAS = ['tabela', 'mapa', 'liderancas', 'estimativa', 'candidatos26'];
-  const TELAS_2026 = { liderancas: 'liderancas', estimativa: 'estimativa', candidatos26: 'candidatos' }; // tela do app -> tela do módulo
-  const NOME_TELA = { mapa: 'Mapa', liderancas: 'Lideranças', estimativa: 'Estimativa 2026', candidatos26: 'Candidatos 2026' };
+  const TELAS = ['tabela', 'mapa', 'liderancas', 'estimativa', 'candidatos26', 'usuarios'];
+  const TELAS_2026 = { liderancas: 'liderancas', estimativa: 'estimativa', candidatos26: 'candidatos', usuarios: 'usuarios' }; // tela do app -> tela do módulo
+  const NOME_TELA = { mapa: 'Mapa', liderancas: 'Lideranças', estimativa: 'Estimativa 2026', candidatos26: 'Candidatos 2026', usuarios: 'Usuários' };
   const NOME_POR = { bairro: 'bairro', local: 'local de votação', secao: 'seção' };
   const NOME_POR_CAB = { bairro: 'Bairro', local: 'Local de votação', secao: 'Seção' };
   const TILES_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';

@@ -438,6 +438,11 @@ body.la-modal-aberto { overflow: hidden; }
 .la-login input { font: inherit; padding: 9px 10px; border: 1px solid var(--borda-forte); border-radius: 9px; }
 .la-login .erro { color: var(--vermelho); font-size: 0.85rem; }
 .la-erro-sync { background: #fdecec; border-color: #f3b4b4; color: #9f1d1d; }
-.la-somente-leitura .btn-primario, .la-somente-leitura [data-la="excluir"], .la-somente-leitura [data-la="remover-grupo"], .la-somente-leitura form[data-la="form-add"] { display: none !important; }
+.la-somente-leitura .btn-primario:not(.la-login .btn-primario):not(.la-bloqueado .btn-primario):not(.la-status .btn-primario):not(.la-modal .btn-primario), .la-somente-leitura [data-la="excluir"], .la-somente-leitura [data-la="remover-grupo"], .la-somente-leitura form[data-la="form-add"] { display: none !important; }
 .la-somente-leitura .la-est { pointer-events: none; background: var(--painel-suave); color: var(--texto-suave); }
 .la-login-link { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--borda); }
+.la-bloqueado { max-width: 560px; }
+.la-bloqueado h2 { margin: 0 0 8px; font-size: 1.2rem; }
+.la-bloqueado p { margin: 0 0 14px; color: var(--texto-suave); }
+.la-abas-login { margin-bottom: 14px; }
+.la-abas-login button { flex: 1; }
