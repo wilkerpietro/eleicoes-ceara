@@ -402,6 +402,7 @@
       '<div class="detalhe-sub">Trabalhará em 2026 para</div><div class="la-det-grid">' + apoios26 + '</div>' +
       (l.obs ? '<div class="la-det"><span class="rotulo">Observações</span><span class="valor">' + esc(l.obs) + '</span></div>' : '') +
       '<div class="la-form-acoes"><button type="button" class="btn btn-primario" data-la="editar" data-id="' + l.id + '">Editar</button>' +
+        (foiCandidato2024(l) && ctx.verVotos ? '<button type="button" class="btn" data-la="ver-votos" data-id="' + l.id + '" title="Abre a tela Tabelas nas Eleições 2024 com este candidato filtrado">Ver detalhamento dos votos</button>' : '') +
         '<button type="button" class="btn" data-la="excluir" data-id="' + l.id + '">Excluir</button>' +
         '<button type="button" class="btn" data-la="fechar-modal">Fechar</button></div>';
   }
@@ -627,6 +628,12 @@
     const acao = alvo.dataset.la;
     if (acao === 'fechar-modal') { if (alvo.classList.contains('la-modal-fundo') && ev.target !== alvo) return; fecharModal(); }
     else if (acao === 'abrir') { ui.modal = alvo.dataset.id; ui.editando = null; render(); }
+    else if (acao === 'ver-votos') {
+      const l = porId(alvo.dataset.id);
+      if (!l || !ctx.verVotos) return;
+      fecharModal();
+      ctx.verVotos({ cargo: l.origem === 'prefeito2024' ? 'Prefeito' : 'Vereador', numero: l.numero, cdMun: l.cd_mun });
+    }
     else if (acao === 'nova') { ui.modal = 'nova'; ui.editando = 'nova'; render(); const i = ctx.el.querySelector('.la-modal input[name="nome"]'); if (i) i.focus(); }
     else if (acao === 'editar') { ui.modal = alvo.dataset.id; ui.editando = alvo.dataset.id; render(); }
     else if (acao === 'cancelar') { if (ui.modal === 'nova') fecharModal(); else { ui.editando = null; ui.novoCandidato = false; render(); } }

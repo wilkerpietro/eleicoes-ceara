@@ -49,8 +49,6 @@
     gradeMapa: $('#grade-mapa'),
     telaLiderancas: $('#tela-liderancas'),
     filtros: $('.filtros'),
-    tituloDestaques: $('#titulo-destaques'),
-    destaques: $('#destaques'),
     titulo: $('#titulo-tabela'),
     dica: $('#dica-tabela'),
     thead: $('#tabela thead'),
@@ -703,26 +701,6 @@
     const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : emMun();
     renderResumoCandidato(cand, d, rankingCandidatos(), escopo);
 
-    el.destaques.parentElement.hidden = false;
-    el.gradeTabela.classList.remove('sem-destaques');
-    el.tituloDestaques.textContent = 'Top ' + NOME_POR[estado.por] + (estado.por === 'local' ? 'is' : 's');
-    const top = d.linhas.filter((g) => g.votos > 0).slice(0, 5);
-    const comPizza = estado.por === 'bairro' && !estado.bairro && d.totalCand > 0;
-    let pizza = '';
-    if (comPizza) {
-      const somaTop = top.reduce((s, g) => s + g.votos, 0);
-      const fatias = top.map((g, i) => ({ rotulo: titulo(g.rotulo), valor: g.votos, cor: CORES[i] }));
-      if (d.totalCand - somaTop > 0) fatias.push({ rotulo: 'Demais bairros', valor: d.totalCand - somaTop, cor: COR_OUTROS });
-      pizza = '<div class="pizza-bloco">' + svgPizza(fatias, 120, { titulo: 'Distribuição dos votos de ' + cand.nome + ' por bairro' }) +
-        '<div class="pizza-lista">' + fatias.map((f) => '<div class="item"><span class="ponto" style="background:' + f.cor + '"></span><span class="nome" title="' + esc(f.rotulo) + '">' + esc(f.rotulo) + '</span>' +
-          '<span class="num"><b>' + fmtPct(pct(f.valor, d.totalCand)) + '</b></span></div>').join('') + '</div></div>';
-    }
-    el.destaques.innerHTML = pizza + (top.map((g, i) => destaque({
-      pos: i + 1, rotulo: estado.por === 'secao' ? g.rotulo + ' · ' + titulo(g.bairro) : titulo(g.rotulo),
-      numero: fmtInt(g.votos), sub: fmtPct(pct(g.votos, g.validos)) + ' dos válidos',
-      acao: estado.por !== 'secao' ? 'bairro' : '', valor: g.bairro, cor: comPizza ? CORES[i] : '',
-    })).join('') || '<div class="vazio">Sem votos neste recorte.</div>');
-
     const nomePor = NOME_POR_CAB[estado.por];
     el.titulo.textContent = cand.nome + ' — votos por ' + nomePor.toLowerCase() + ' ' + escopo;
     el.dica.textContent = estado.por === 'secao' ? '' : 'Clique em uma linha para ver as seções do bairro.';
@@ -763,10 +741,6 @@
     renderResumoRanking(r, escopo);
 
     const cores = coresPartidos();
-    // no ranking, a tabela já traz tudo: o painel lateral (pizza e "mais votados") fica oculto
-    el.destaques.parentElement.hidden = true;
-    el.gradeTabela.classList.add('sem-destaques');
-    el.destaques.innerHTML = '';
 
     el.titulo.textContent = 'Ranking · ' + estado.cargo + ' ' + escopo;
     el.dica.textContent = 'Clique em um candidato para ver os votos por ' + NOME_POR[estado.por] + '.';
@@ -955,6 +929,7 @@
           el: el.telaLiderancas, tela: TELAS_2026[estado.tela], cdMun: estado.mun, nomeMun: nomeMun(), municipios: db.municipios,
           candidatos2026: manifesto.candidatos2026, fotos2026: manifesto.fotos2026,
           irPara: (t) => { const app = Object.keys(TELAS_2026).find((k) => TELAS_2026[k] === t); if (app) executarAcao('tela', app); },
+          verVotos: abrirVotos2024,
         });
       } else el.telaLiderancas.innerHTML = '<section class="painel"><div class="vazio">Módulo de lideranças não carregado.</div></section>';
     }
@@ -979,7 +954,23 @@
     }
   }
 
-  /** Ações de navegação usadas por cartões, destaques, trilha, tabela e mapa. */
+  /** Abre a tela Tabelas nas Eleições 2024 com o candidato (vereador ou prefeito) filtrado. Chamada pela ficha da liderança. */
+  function abrirVotos2024(info) {
+    const cfg = manifesto.eleicoes.find((e) => String(e.ano) === '2024') || manifesto.eleicoes.find((e) => e.id === '2024-1');
+    if (!cfg) return;
+    estado.tela = 'tabela';
+    estado.cargo = info.cargo;
+    estado.cand = String(info.numero);
+    estado.bairro = '';
+    estado.busca = '';
+    estado.por = 'bairro';
+    const mun = info.cdMun || estado.mun;
+    if (estado.eleicao !== cfg.id || estado.mun !== mun) trocarEleicao(cfg.id, mun);
+    else render(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  /** Ações de navegação usadas por cartões, trilha, tabela e mapa. */
   function executarAcao(acao, valor) {
     if (acao === 'vermais') { expandido[valor] = !expandido[valor]; render(false); return; }
     if (acao === 'inicio') { estado.cand = ''; estado.bairro = ''; estado.busca = ''; estado.tela = 'tabela'; }
