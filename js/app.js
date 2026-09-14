@@ -629,42 +629,18 @@
 
   // ---------- cartões de resumo ----------
   function renderResumoCandidato(cand, d, ranking, escopo) {
-    const posicao = ranking.linhas.find((l) => l.numero === estado.cand);
-    const porBairro = estado.bairro ? null : distribuicaoCandidato('bairro');
-    const maiorBairro = porBairro && porBairro.linhas[0];
-
+    // um único cartão em destaque: nome e votos em evidência; abaixo, nome completo e partido
     const cad = cand.cadastro;
-    const rodapeCand = cand.numero + ' · ' + cand.partido + (cand.coligacao && cand.coligacao !== cand.partido ? ' · ' + cand.coligacao : '') +
-      (cad && cad.nome && cad.nome !== cand.nome ? ' · ' + titulo(cad.nome) : '') + (cad && cad.ocupacao ? ' · ' + titulo(cad.ocupacao) : '');
-    el.resumo.innerHTML = [
-      card({
-        icone: 'i-vote', foto: avatar(cand.nome, cand.numero, 44), selo: seloSituacao(cand.numero),
-        rotulo: 'Votos ' + escopo, valor: fmtInt(d.totalCand),
-        linha: { rotulo: 'Dos válidos para ' + estado.cargo + ':', valor: fmtPct(pct(d.totalCand, d.totalValidos)), cor: 'verde' },
-        rodape: { texto: rodapeCand },
-      }),
-      card({
-        icone: 'i-trophy', rotulo: 'Posição no ranking ' + escopo, valor: posicao ? posicao.posicao + 'º' : '—',
-        linha: { rotulo: 'Candidatos com votos:', valor: fmtInt(ranking.linhas.length), cor: '' },
-        rodape: { texto: 'Ver ranking completo', acao: 'ranking' },
-      }),
-      maiorBairro && maiorBairro.votos > 0
-        ? card({
-          icone: 'i-pin', rotulo: 'Bairro com mais votos', valor: titulo(maiorBairro.bairro),
-          linha: { rotulo: 'Votos no bairro:', valor: fmtInt(maiorBairro.votos) + ' (' + fmtPct(pct(maiorBairro.votos, maiorBairro.validos)) + ')', cor: 'verde' },
-          rodape: { texto: estado.tela === 'mapa' ? 'Ver no mapa' : 'Ver seções do bairro', acao: 'bairro', valor: maiorBairro.bairro },
-        })
-        : card({
-          icone: 'i-pin', rotulo: 'Seções ' + escopo, valor: fmtInt(secoesNoEscopo().length),
-          linha: { rotulo: 'Eleitores aptos:', valor: fmtInt(d.aptos), cor: '' },
-          rodape: { texto: 'Ver todo o município', acao: 'bairro', valor: '' },
-        }),
-      card({
-        icone: 'i-chart', rotulo: 'Votos válidos ' + escopo, valor: fmtInt(d.totalValidos),
-        linha: { rotulo: 'Eleitores aptos:', valor: fmtInt(d.aptos), cor: 'laranja' },
-        rodape: { texto: 'Comparecimento e brancos/nulos no ranking', acao: 'ranking' },
-      }),
-    ].join('');
+    const nomeCompleto = cad && cad.nome && titulo(cad.nome) !== titulo(cand.nome) ? titulo(cad.nome) : '';
+    const partido = cand.partido + (cand.coligacao && cand.coligacao !== cand.partido ? ' · ' + cand.coligacao : '');
+    el.resumo.innerHTML = '<div class="card card-heroi">' +
+      '<div class="heroi-foto">' + avatar(cand.nome, cand.numero, 96) + '</div>' +
+      '<div class="heroi-texto">' +
+        '<div class="heroi-nome">' + esc(cand.nome) + seloSituacao(cand.numero) + '</div>' +
+        '<div class="heroi-sub">' + (nomeCompleto ? esc(nomeCompleto) + ' · ' : '') + esc(partido) + ' · nº ' + esc(cand.numero) + '</div>' +
+      '</div>' +
+      '<div class="heroi-votos"><div class="heroi-numero">' + fmtInt(d.totalCand) + '</div><div class="heroi-rotulo">votos ' + esc(escopo) + '</div></div>' +
+      '</div>';
   }
 
   function renderResumoRanking(r, escopo) {

@@ -408,3 +408,19 @@ body.la-modal-aberto { overflow: hidden; }
 .la-cards-grupo { margin-bottom: 12px; }
 .la-cards-grupo .card { background: #fff; }
 .la-abas .contagem { margin-left: 6px; font-size: 0.78rem; opacity: 0.8; }
+
+/* ---------- cartão em destaque do candidato (tela Tabelas) ---------- */
+.cards:has(.card-heroi) { grid-template-columns: 1fr; }
+.card-heroi { flex-direction: row; align-items: center; gap: 20px; padding: 18px 22px; }
+.heroi-foto .avatar { width: 96px; height: 96px; font-size: 1.6rem; border: 3px solid #fff; box-shadow: 0 0 0 1px var(--borda-forte), 0 4px 12px rgba(17, 24, 39, 0.12); }
+.heroi-texto { flex: 1; min-width: 0; }
+.heroi-nome { font-size: 1.7rem; font-weight: 800; line-height: 1.15; letter-spacing: -0.01em; }
+.heroi-nome .selo { vertical-align: middle; font-size: 0.7rem; margin-left: 10px; }
+.heroi-sub { margin-top: 6px; font-size: 1rem; color: var(--texto-suave); }
+.heroi-votos { text-align: right; flex: none; padding-left: 20px; border-left: 1px solid var(--borda); }
+.heroi-numero { font-size: 2.4rem; font-weight: 800; line-height: 1; color: var(--primaria); font-variant-numeric: tabular-nums; }
+.heroi-rotulo { margin-top: 6px; font-size: 0.85rem; color: var(--texto-suave); text-transform: uppercase; letter-spacing: 0.05em; }
+@media (max-width: 640px) {
+  .card-heroi { flex-wrap: wrap; }
+  .heroi-votos { border-left: 0; padding-left: 0; text-align: left; width: 100%; }
+}
