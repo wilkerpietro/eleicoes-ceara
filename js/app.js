@@ -29,9 +29,8 @@
 
   const $ = (sel) => document.querySelector(sel);
   const el = {
-    eleicao: $('#sel-eleicao'),
+    navEleicoes: $('#nav-eleicoes'),
     municipio: $('#sel-municipio'),
-    navCargos: $('#nav-cargos'),
     navTelas: $('#nav-telas'),
     candidato: $('#sel-candidato'),
     bairro: $('#sel-bairro'),
@@ -69,7 +68,10 @@
   let partidosPorAno = {}; // ano -> {número -> sigla}
   let geoTodos = {}; // cd_municipio -> [{nome, lat, lng}]
   let geo = new Map(); // nome do bairro -> {lat, lng} (município atual)
-  const nomeMun = () => (db && db.mun ? titulo(db.mun.nome) : '');
+  const TODOS = 'todos'; // código do agregado estadual
+  const nomeMun = () => (db && db.mun ? (db.mun.cd === TODOS ? 'Ceará' : titulo(db.mun.nome)) : '');
+  const noEstado = () => !!(db && db.mun && db.mun.cd === TODOS);
+  const emMun = () => (noEstado() ? 'no Ceará' : 'em ' + nomeMun());
   let db = null; // dados da eleição carregada
   const mapa = { obj: null, camada: null, marcadores: new Map(), ajustado: false };
   const expandido = { tabela: false, mapa: false }; // listas de candidatos com "ver todos" aberto
@@ -181,10 +183,15 @@
     el.status.classList.remove('erro');
 
     const municipios = await municipiosDe(cfg);
-    let mun = municipios.find((m) => m.cd === cd) || municipios.find((m) => m.cd === manifesto.municipio_padrao) || municipios[0];
+    let mun = null;
+    if (cd === TODOS && cfg.agregado_estado) mun = { cd: TODOS, nome: 'TODOS OS MUNICÍPIOS' };
+    else mun = municipios.find((m) => m.cd === cd) || municipios.find((m) => m.cd === manifesto.municipio_padrao) || municipios[0];
     if (!mun) throw new Error('nenhum município disponível em ' + cfg.nome);
     estado.mun = mun.cd;
     const pasta = cfg.pasta + mun.cd + '/';
+    // no agregado estadual, o "bairro" é o município
+    NOME_POR.bairro = mun.cd === TODOS ? 'município' : 'bairro';
+    NOME_POR_CAB.bairro = mun.cd === TODOS ? 'Município' : 'Bairro';
     const ano = String(cfg.ano);
     const partidos = partidosPorAno[ano] || {};
 
@@ -359,22 +366,39 @@
   }
 
   function renderControles() {
-    el.eleicao.innerHTML = manifesto.eleicoes.map((e) => opcao(e.id, e.nome, e.id === estado.eleicao)).join('');
-    el.municipio.innerHTML = db.municipios.map((m) => opcao(m.cd, titulo(m.nome), m.cd === estado.mun)).join('');
-    document.title = 'Eleições ' + nomeMun() + ' · Votação por bairro e seção';
-
-    // sem bairros cadastrados, esconde o filtro e a opção "Bairro"
-    el.bairro.parentElement.hidden = !db.temBairros;
-    const radioBairro = document.querySelector('input[name="por"][value="bairro"]');
-    if (radioBairro) radioBairro.parentElement.hidden = !db.temBairros;
-    if (!db.temBairros && estado.por === 'bairro') estado.por = 'local';
-
     if (!db.cargos.includes(estado.cargo)) estado.cargo = db.cargos[0] || '';
-    el.navCargos.innerHTML = db.cargos.map((c) => {
-      const n = (db.candidatos.get(c) || new Map()).size;
-      return '<button type="button" class="nav-item' + (c === estado.cargo ? ' ativo' : '') + '" data-cargo="' + esc(c) + '">' +
-        icone(ICONE_CARGO[c] || 'i-users') + '<span>' + esc(c) + '</span><span class="contagem">' + n + '</span></button>';
+
+    // eleições como itens de menu; os cargos da eleição atual aparecem aninhados abaixo dela
+    el.navEleicoes.innerHTML = manifesto.eleicoes.map((e) => {
+      const ativa = e.id === estado.eleicao;
+      let html = '<button type="button" class="nav-item nav-eleicao' + (ativa ? ' ativo' : '') + '" data-eleicao="' + esc(e.id) + '" aria-expanded="' + ativa + '">' +
+        icone('i-vote') + '<span>' + esc(e.nome_curto || e.nome) + '</span>' + icone('i-right', 'seta') + '</button>';
+      if (ativa) {
+        html += '<div class="nav-sub">' + db.cargos.map((c) => {
+          const n = (db.candidatos.get(c) || new Map()).size;
+          return '<button type="button" class="nav-item' + (c === estado.cargo ? ' ativo' : '') + '" data-cargo="' + esc(c) + '">' +
+            icone(ICONE_CARGO[c] || 'i-users') + '<span>' + esc(c) + '</span><span class="contagem">' + n + '</span></button>';
+        }).join('') + '</div>';
+      }
+      return html;
     }).join('');
+
+    const temTodos = !!db.cfg.agregado_estado;
+    el.municipio.innerHTML = '<option value="' + TODOS + '"' + (estado.mun === TODOS ? ' selected' : '') + (temTodos ? '' : ' disabled') + '>' +
+      'Todos os municípios (Ceará)' + (temTodos ? '' : ' — indisponível: candidatos diferentes em cada município') + '</option>' +
+      db.municipios.map((m) => opcao(m.cd, titulo(m.nome), m.cd === estado.mun)).join('');
+    document.title = 'Eleições ' + nomeMun() + ' · Votação por ' + (noEstado() ? 'município' : 'bairro e seção');
+
+    // sem bairros cadastrados, esconde o filtro e a opção "Bairro"; no agregado estadual só existe "Município"
+    el.bairro.parentElement.hidden = !db.temBairros || noEstado();
+    el.bairro.previousElementSibling && (el.bairro.previousElementSibling.textContent = NOME_POR_CAB.bairro);
+    document.querySelectorAll('input[name="por"]').forEach((r) => {
+      const rotulo = r.nextElementSibling;
+      if (r.value === 'bairro') { r.parentElement.hidden = !db.temBairros; if (rotulo) rotulo.textContent = NOME_POR_CAB.bairro; }
+      else r.parentElement.hidden = noEstado();
+    });
+    if (!db.temBairros && estado.por === 'bairro') estado.por = 'local';
+    if (noEstado()) estado.por = 'bairro';
     el.navTelas.querySelectorAll('[data-tela]').forEach((b) => b.classList.toggle('ativo', b.dataset.tela === estado.tela));
 
     if (estado.bairro && !db.bairros.includes(estado.bairro)) estado.bairro = '';
@@ -639,7 +663,7 @@
   function renderCandidato() {
     const cand = db.candidatos.get(estado.cargo).get(estado.cand);
     const d = distribuicaoCandidato(estado.por);
-    const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : 'em ' + nomeMun();
+    const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : emMun();
     renderResumoCandidato(cand, d, rankingCandidatos(), escopo);
 
     el.tituloDestaques.textContent = 'Top ' + NOME_POR[estado.por] + (estado.por === 'local' ? 'is' : 's');
@@ -696,7 +720,7 @@
   function renderRanking() {
     const r = rankingCandidatos();
     const t = r.totais;
-    const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : 'em ' + nomeMun();
+    const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : emMun();
     renderResumoRanking(r, escopo);
 
     const cores = coresPartidos();
@@ -745,7 +769,7 @@
 
   function renderMapa() {
     const cand = estado.cand ? db.candidatos.get(estado.cargo).get(estado.cand) : null;
-    const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : 'em ' + nomeMun();
+    const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : emMun();
 
     // cartões de resumo iguais aos da tela de tabelas
     if (cand) renderResumoCandidato(cand, distribuicaoCandidato('bairro'), rankingCandidatos(), escopo);
@@ -832,7 +856,7 @@
     const geral = !estado.bairro || !resumo.has(estado.bairro);
     const r = geral ? resumoMunicipio(cand) : resumo.get(estado.bairro);
     const lugar = geral ? nomeMun() : titulo(estado.bairro);
-    const onde = geral ? 'no município' : 'no bairro';
+    const onde = geral ? (noEstado() ? 'no Ceará' : 'no município') : 'no ' + NOME_POR.bairro;
     el.tituloBairro.textContent = geral ? 'Detalhes gerais · ' + nomeMun() : titulo(estado.bairro);
     const stat = (rotulo, valor, sub) => '<div class="detalhe-stat"><span class="rotulo">' + esc(rotulo) + '</span><span class="valor">' + esc(valor) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span></div>';
 
@@ -911,6 +935,12 @@
     else if (acao === 'cargo') { estado.cand = ''; estado.busca = ''; }
     else if (acao === 'ranking') { estado.cand = ''; }
     else if (acao === 'cand') { estado.cand = valor; estado.busca = ''; }
+    else if (acao === 'bairro' && noEstado() && valor) {
+      // no agregado estadual, escolher um "bairro" (município) abre a página daquele município
+      const m = db.municipios.find((x) => x.nome === valor);
+      if (m) { estado.bairro = ''; trocarEleicao(estado.eleicao, m.cd); return; }
+      estado.bairro = valor;
+    }
     else if (acao === 'bairro') { estado.bairro = valor; expandido.mapa = false; expandido.tabela = false; if (estado.cand && valor && estado.tela === 'tabela') estado.por = 'secao'; }
     else if (acao === 'secoes') { estado.bairro = valor; estado.tela = 'tabela'; estado.por = 'secao'; }
     render(true);
@@ -918,13 +948,16 @@
   }
 
   // ---------- eventos ----------
-  el.eleicao.addEventListener('change', () => { estado.cand = ''; estado.bairro = ''; trocarEleicao(el.eleicao.value, estado.mun); });
   el.municipio.addEventListener('change', () => { estado.cand = ''; estado.bairro = ''; estado.busca = ''; trocarEleicao(estado.eleicao, el.municipio.value); });
-  el.navCargos.addEventListener('click', (ev) => {
-    const b = ev.target.closest('[data-cargo]');
-    if (!b) return;
-    estado.cargo = b.dataset.cargo; estado.cand = ''; estado.busca = '';
-    render(true);
+  el.navEleicoes.addEventListener('click', (ev) => {
+    const cargo = ev.target.closest('[data-cargo]');
+    if (cargo) { estado.cargo = cargo.dataset.cargo; estado.cand = ''; estado.busca = ''; render(true); return; }
+    const eleicao = ev.target.closest('[data-eleicao]');
+    if (!eleicao || eleicao.dataset.eleicao === estado.eleicao) return;
+    estado.cand = ''; estado.bairro = ''; estado.busca = ''; estado.cargo = '';
+    const cfg = manifesto.eleicoes.find((e) => e.id === eleicao.dataset.eleicao);
+    const mun = (estado.mun === TODOS && cfg && !cfg.agregado_estado) ? manifesto.municipio_padrao : estado.mun;
+    trocarEleicao(eleicao.dataset.eleicao, mun);
   });
   el.navTelas.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-tela]');

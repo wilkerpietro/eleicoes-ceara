@@ -36,19 +36,17 @@
         <span class="marca-nome">Eleições Ceará</span>
       </div>
 
+      <nav class="nav" aria-label="Eleição e cargos">
+        <div class="nav-titulo">Eleição</div>
+        <div id="nav-eleicoes" class="nav-lista"></div>
+      </nav>
+
       <div class="campo campo-municipio">
         <label for="sel-municipio" class="rotulo">Município</label>
         <select id="sel-municipio" aria-label="Município"></select>
       </div>
 
-      <label class="busca">
-        <svg class="icone"><use href="#i-search"/></svg>
-        <input id="inp-busca" type="search" placeholder="Buscar candidato" autocomplete="off" aria-label="Buscar candidato por nome, número ou partido">
-      </label>
-
-      <nav class="nav" aria-label="Cargos">
-        <div class="nav-titulo">Cargos</div>
-        <div id="nav-cargos" class="nav-lista"></div>
+      <nav class="nav" aria-label="Consulta">
         <div class="nav-titulo">Consulta</div>
         <div id="nav-telas" class="nav-lista">
           <button type="button" class="nav-item ativo" data-tela="tabela">
@@ -61,8 +59,10 @@
       </nav>
 
       <div class="lateral-rodape">
-        <label for="sel-eleicao" class="rotulo">Eleição</label>
-        <select id="sel-eleicao"></select>
+        <label class="busca">
+          <svg class="icone"><use href="#i-search"/></svg>
+          <input id="inp-busca" type="search" placeholder="Buscar candidato" autocomplete="off" aria-label="Buscar candidato por nome, número ou partido">
+        </label>
       </div>
     </aside>
 

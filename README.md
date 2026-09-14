@@ -6,7 +6,8 @@ Site estático, sem dependências: HTML, CSS e JavaScript puro lendo os CSVs da 
 
 ## O que já funciona
 
-- Seleção de **eleição** (2022 gerais, 2024 municipais) e de **município** na barra lateral.
+- Barra lateral com as **eleições** (2022 gerais, 2024 municipais) como itens de menu; os **cargos** da eleição escolhida aparecem aninhados abaixo dela. Em seguida, o seletor de **município**.
+- Opção **"Todos os municípios (Ceará)"** no seletor: agregado estadual em que cada município funciona como um "bairro" (ranking do estado, votos de um candidato por município, clique no município abre a página dele). Disponível nas eleições em que os candidatos são os mesmos no estado inteiro (2022); em 2024 a opção fica desabilitada, porque os números dos candidatos se repetem entre municípios. O agregado é gerado por `scripts/agregar-estado.sh data/2022-1` (pasta `data/2022-1/todos/`) e ligado pela chave `agregado_estado` em `data/eleicoes.json`.
 - Filtros por **cargo**, **candidato** e **bairro** (quando o município tem bairros cadastrados), com busca por nome, número ou partido.
 - **Modo ranking** (nenhum candidato selecionado): ranking dos candidatos do cargo no município ou em um bairro, com aptos, comparecimento, abstenção, válidos, brancos, nulos e votos de legenda; pizza com todos os candidatos na cor fixa do partido e lista de votos e % por candidato; lista de mais votados com os 5 primeiros e "Ver todos".
 - **Modo candidato**: votos do candidato agrupados por bairro, local de votação ou seção, com % dos votos válidos no grupo, % do total do candidato, válidos e aptos.

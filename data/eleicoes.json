@@ -7,10 +7,12 @@
       "ano": 2022,
       "turno": 1,
       "nome": "Eleições Gerais 2022 · 1º turno",
+      "nome_curto": "Eleições 2022 (gerais)",
       "data": "2022-10-02",
       "pasta": "data/2022-1/",
       "municipios": "data/2022-1/municipios.json",
       "fotos": "data/2022-1/fotos/",
+      "agregado_estado": true,
       "fonte": "TSE — Dados abertos, votação por seção (votacao_secao_2022_CE e votacao_secao_2022_BR), cadastro consulta_cand_2022 e fotos oficiais; seções, bairros e aptos da lista de seções do TRE-CE (04/10/2022)"
     },
     {
@@ -18,6 +20,7 @@
       "ano": 2024,
       "turno": 1,
       "nome": "Eleições Municipais 2024 · 1º turno",
+      "nome_curto": "Eleições 2024 (municipais)",
       "data": "2024-10-06",
       "pasta": "data/2024-1/",
       "municipios": "data/2024-1/municipios.json",
