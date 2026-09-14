@@ -9,16 +9,24 @@ Site estático, sem dependências: HTML, CSS e JavaScript puro lendo os CSVs da 
 - Barra lateral com as **eleições** (2022 gerais, 2024 municipais) como itens de menu; os **cargos** da eleição escolhida aparecem aninhados abaixo dela. Em seguida, o seletor de **município**.
 - Opção **"Todos os municípios (Ceará)"** no seletor: agregado estadual em que cada município funciona como um "bairro" (ranking do estado, votos de um candidato por município, clique no município abre a página dele). Disponível nas eleições em que os candidatos são os mesmos no estado inteiro (2022); em 2024 a opção fica desabilitada, porque os números dos candidatos se repetem entre municípios. O agregado é gerado por `scripts/agregar-estado.sh data/2022-1` (pasta `data/2022-1/todos/`) e ligado pela chave `agregado_estado` em `data/eleicoes.json`.
 - Filtros por **cargo**, **candidato** e **bairro** (quando o município tem bairros cadastrados), com busca por nome, número ou partido.
-- **Modo ranking** (nenhum candidato selecionado): ranking dos candidatos do cargo no município ou em um bairro, com aptos, comparecimento, abstenção, válidos, brancos, nulos e votos de legenda; pizza com todos os candidatos na cor fixa do partido e lista de votos e % por candidato; lista de mais votados com os 5 primeiros e "Ver todos".
+- **Modo ranking** (nenhum candidato selecionado): ranking dos candidatos do cargo no município ou em um bairro, com foto, cor do partido, votos e %, além de aptos, comparecimento, abstenção, válidos, brancos, nulos e votos de legenda.
 - **Modo candidato**: votos do candidato agrupados por bairro, local de votação ou seção, com % dos votos válidos no grupo, % do total do candidato, válidos e aptos.
 - Foto oficial, nome completo, ocupação e situação (Eleito, Suplente, 2º turno) de cada candidato, a partir do cadastro do TSE (2022; 2024 quando o cadastro for adicionado).
 - Navegação por clique (candidato abre a distribuição, bairro abre as seções), trilha de localização e estado na URL (`#e=2022-1&m=15997&cargo=...&cand=...&bairro=...`) para compartilhar consultas.
 
 ## Mapa por bairro
 
-- Tela **Mapa por bairro**: em cada bairro, um mini gráfico de barras com os 3 mais votados (foto no topo da barra, quantidade de votos e barra na cor do partido, altura relativa ao 1º do bairro); com candidato selecionado, uma barra só com os votos dele. Os quadros ficam sem fundo em repouso, ampliam ao passar o cursor e nunca se sobrepõem: a cada zoom o mapa afasta os quadros que se tocariam, ligando-os ao ponto real do bairro por uma linha tracejada, e centraliza o conjunto na primeira exibição. Clicar no bairro abre o painel de detalhes (pizza com todos os candidatos, totais e lista com "Ver todos"); sem bairro selecionado, o painel mostra "Detalhes gerais" do município.
+- Tela **Mapa por bairro**: em cada bairro, um mini gráfico de barras com os 3 mais votados (foto no topo da barra, quantidade de votos e barra na cor do partido, altura relativa ao 1º do bairro); com candidato selecionado, uma barra só com os votos dele. Clicar no bairro abre o painel de detalhes com a pizza de todos os candidatos, os totais e a lista de mais votados ("Ver todos"). Clicar no bairro abre o painel de detalhes (pizza com todos os candidatos, totais e lista com "Ver todos"); sem bairro selecionado, o painel mostra "Detalhes gerais" do município.
 - As coordenadas ficam em `data/bairros.json`, por código TSE do município. Hoje só Paraipaba tem bairros e coordenadas (planilha em `data/raw/`). Para os demais municípios, os dados abertos do TSE não trazem o bairro dos locais de votação, então a tela informa isso e as tabelas usam local de votação e seção.
 - O mapa usa [Leaflet](https://leafletjs.com/) (CDN) com o mapa base do [OpenStreetMap](https://www.openstreetmap.org/copyright).
+
+## Lideranças (mapeamento político municipal)
+
+Aba **Lideranças** no menu, sempre para o município escolhido na barra lateral:
+
+- **Cadastro**: todos os candidatos a vereador de 2024 do município entram automaticamente (nome de urna, partido, votos de 2024, situação e foto), e é possível incluir lideranças manualmente. Cada liderança registra para quem trabalhou em 2022 (Deputado Estadual e Federal, com sugestões dos candidatos que tiveram votos no município), quem apoiou em 2024 (Prefeito e, se não foi candidata, Vereador), para quem vai trabalhar em 2026 (Estadual e Federal) e a estimativa de votos que deve entregar a cada um.
+- **Grupos 2026**: escolha um candidato de 2026 (cadastrado ali mesmo, com cargo e partido) e monte o grupo dele no município adicionando lideranças já cadastradas com a estimativa de votos; a tela mostra os votos de 2024 de cada liderança como referência, a soma das estimativas (expectativa do candidato na cidade) e, quando há grupos em mais de um município, a expectativa total no Ceará por município.
+- **Onde ficam os dados**: no navegador (`localStorage`), sem servidor. Use **Exportar** para baixar um JSON e **Importar** para carregar em outro computador. Um arquivo `data/liderancas.json` publicado junto com o site serve de base inicial para quem abre o site pela primeira vez (substitua-o por um export para compartilhar o cadastro).
 
 ## Como rodar localmente
 

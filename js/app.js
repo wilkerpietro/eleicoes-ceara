@@ -44,6 +44,8 @@
     resumo: $('#resumo'),
     gradeTabela: $('#grade-tabela'),
     gradeMapa: $('#grade-mapa'),
+    telaLiderancas: $('#tela-liderancas'),
+    filtros: $('.filtros'),
     tituloDestaques: $('#titulo-destaques'),
     destaques: $('#destaques'),
     titulo: $('#titulo-tabela'),
@@ -114,7 +116,7 @@
     estado.bairro = p.get('bairro') || '';
     estado.por = ['bairro', 'local', 'secao'].includes(p.get('por')) ? p.get('por') : 'bairro';
     estado.busca = p.get('q') || '';
-    estado.tela = p.get('tela') === 'mapa' ? 'mapa' : 'tabela';
+    estado.tela = ['mapa', 'liderancas'].includes(p.get('tela')) ? p.get('tela') : 'tabela';
   }
 
   function hashAtual() {
@@ -414,13 +416,20 @@
       filtrados.map((c) => opcao(c.numero, c.numero + ' · ' + c.nome + ' (' + c.partido + ') — ' + fmtInt(c.total) + ' votos', c.numero === estado.cand)).join('');
 
     document.querySelectorAll('input[name="por"]').forEach((r) => { r.checked = r.value === estado.por; });
-    el.campoPor.hidden = estado.tela === 'mapa';
+    el.campoPor.hidden = estado.tela !== 'tabela';
     if (el.busca.value !== estado.busca) el.busca.value = estado.busca;
   }
 
   function renderTrilha() {
     const partes = [{ texto: db.cfg.nome, acao: 'inicio' }, { texto: nomeMun(), acao: 'inicio' }];
     if (estado.tela === 'mapa') partes.push({ texto: 'Mapa', acao: 'tela', valor: 'mapa' });
+    if (estado.tela === 'liderancas') {
+      partes.push({ texto: 'Lideranças', acao: 'tela', valor: 'liderancas' });
+      el.trilha.innerHTML = partes.map((p, i) => (i ? '<span class="sep">›</span>' : '') + (i === partes.length - 1
+        ? '<span class="crumb atual">' + esc(p.texto) + '</span>'
+        : '<button type="button" class="crumb" data-acao="' + p.acao + '" data-valor="' + esc(p.valor || '') + '">' + esc(p.texto) + '</button>')).join('');
+      return;
+    }
     partes.push({ texto: estado.cargo, acao: 'cargo' });
     if (estado.bairro) partes.push({ texto: titulo(estado.bairro), acao: 'bairro', valor: estado.bairro });
     if (estado.cand) {
@@ -613,8 +622,8 @@
     el.legendaMapa.innerHTML = itens.map((i) => '<span class="legenda-item"><span class="amostra" style="background:' + i.cor + '"></span>' + esc(i.rotulo) + '</span>').join('') +
       '<span class="legenda-item"><span class="amostra anel"></span>bairro selecionado</span>' +
       '<span class="legenda-nota">' + (cand
-        ? 'Cada barra mostra os votos do candidato no bairro (altura = fatia dele nos votos válidos). Passe o cursor para ampliar.'
-        : 'Cada quadro mostra os 3 mais votados do bairro: foto, votos e barra na cor do partido (altura relativa ao 1º colocado). Passe o cursor para ampliar; quadros deslocados ficam ligados ao ponto do bairro por uma linha.') + '</span>';
+        ? 'Cada barra mostra os votos do candidato no bairro (altura = fatia dele nos votos válidos).'
+        : 'Cada quadro mostra os 3 mais votados do bairro: foto, votos e barra na cor do partido (altura relativa ao 1º colocado).') + '</span>';
   }
 
   // ---------- cartões de resumo ----------
@@ -691,6 +700,8 @@
     const escopo = estado.bairro ? 'em ' + titulo(estado.bairro) : emMun();
     renderResumoCandidato(cand, d, rankingCandidatos(), escopo);
 
+    el.destaques.parentElement.hidden = false;
+    el.gradeTabela.classList.remove('sem-destaques');
     el.tituloDestaques.textContent = 'Top ' + NOME_POR[estado.por] + (estado.por === 'local' ? 'is' : 's');
     const top = d.linhas.filter((g) => g.votos > 0).slice(0, 5);
     const comPizza = estado.por === 'bairro' && !estado.bairro && d.totalCand > 0;
@@ -749,11 +760,10 @@
     renderResumoRanking(r, escopo);
 
     const cores = coresPartidos();
-    el.tituloDestaques.textContent = 'Mais votados ' + escopo;
-    el.destaques.innerHTML = r.linhas.length
-      ? blocoPizzaPartidos(r.linhas, r.legendas, t.validos, cores, 'Divisão dos votos válidos para ' + estado.cargo + ' ' + escopo) +
-        '<div class="detalhe-sub">' + r.linhas.length + ' candidatos com votos</div>' + listaCandidatos(r.linhas, t.validos, cores, 'tabela')
-      : '<div class="vazio">Sem votos neste recorte.</div>';
+    // no ranking, a tabela já traz tudo: o painel lateral (pizza e "mais votados") fica oculto
+    el.destaques.parentElement.hidden = true;
+    el.gradeTabela.classList.add('sem-destaques');
+    el.destaques.innerHTML = '';
 
     el.titulo.textContent = 'Ranking · ' + estado.cargo + ' ' + escopo;
     el.dica.textContent = 'Clique em um candidato para ver os votos por ' + NOME_POR[estado.por] + '.';
@@ -787,86 +797,9 @@
     }
     mapa.obj = L.map(el.mapa, { scrollWheelZoom: true, zoomControl: true });
     L.tileLayer(TILES_URL, { attribution: TILES_ATTR, maxZoom: 19 }).addTo(mapa.obj);
-    mapa.ligacoes = L.layerGroup().addTo(mapa.obj); // linhas dos quadros deslocados até o ponto real
     mapa.camada = L.layerGroup().addTo(mapa.obj);
-    mapa.obj.on('zoomend', posicionarMarcadores);
     mapa.obj.setView([-3.43, -39.17], 12);
     return true;
-  }
-
-  /** Garante que nenhum quadro encoste em outro no zoom atual: reduz um pouco a escala e, se ainda
-   *  houver sobreposição, afasta os quadros em pixels, ligando cada um ao ponto real do bairro por uma linha. */
-  const ESCALA_MAX = 1;
-  const ESCALA_MIN = 1; // tamanho original; a sobreposição é resolvida só pelo afastamento
-  const FOLGA = 8; // px de respiro entre quadros
-  function posicionarMarcadores() {
-    if (!mapa.obj || !mapa.dim) return;
-    if (mapa.ligacoes) mapa.ligacoes.clearLayers();
-    const itens = Array.from(mapa.marcadores.values()).map((m) => {
-      const p = mapa.obj.latLngToLayerPoint(m.base);
-      return { m, ox: p.x, oy: p.y, x: p.x, y: p.y };
-    });
-    if (itens.length < 2) { el.mapa.style.setProperty('--escala', ESCALA_MAX); return; }
-
-    // 1) escala: a maior (até o máximo) em que os quadros cabem sem se tocar, limitada a um mínimo legível
-    let s = ESCALA_MAX;
-    for (let i = 0; i < itens.length; i++) {
-      for (let j = i + 1; j < itens.length; j++) {
-        const dx = Math.abs(itens[i].ox - itens[j].ox);
-        const dy = Math.abs(itens[i].oy - itens[j].oy);
-        const permitido = Math.max((dx - FOLGA) / mapa.dim.w, (dy - FOLGA) / mapa.dim.h);
-        if (permitido < s) s = permitido;
-      }
-    }
-    s = Math.max(ESCALA_MIN, Math.min(ESCALA_MAX, s));
-    el.mapa.style.setProperty('--escala', s.toFixed(3));
-
-    // 2) afastamento: empurra pares que ainda se sobrepõem, pelo eixo de menor penetração
-    const w = mapa.dim.w * s + FOLGA;
-    const h = mapa.dim.h * s + FOLGA;
-    for (let passo = 0; passo < 400; passo++) {
-      let mexeu = false;
-      for (let i = 0; i < itens.length; i++) {
-        for (let j = i + 1; j < itens.length; j++) {
-          const a = itens[i];
-          const b = itens[j];
-          const dx = b.x - a.x;
-          const dy = b.y - a.y;
-          const sobraX = w - Math.abs(dx);
-          const sobraY = h - Math.abs(dy);
-          if (sobraX <= 0 || sobraY <= 0) continue;
-          mexeu = true;
-          if (sobraX < sobraY) {
-            const sinal = dx !== 0 ? Math.sign(dx) : (b.ox >= a.ox ? 1 : -1);
-            a.x -= sinal * (sobraX / 2 + 0.5); b.x += sinal * (sobraX / 2 + 0.5);
-          } else {
-            const sinal = dy !== 0 ? Math.sign(dy) : (b.oy >= a.oy ? 1 : -1);
-            a.y -= sinal * (sobraY / 2 + 0.5); b.y += sinal * (sobraY / 2 + 0.5);
-          }
-        }
-      }
-      if (!mexeu) break;
-    }
-
-    // 3) aplica as posições e desenha a ligação até o ponto real quando o quadro foi deslocado
-    if (mapa.centrar) {
-      // na primeira exibição, centraliza o conjunto de quadros (já afastados) no mapa
-      mapa.centrar = false;
-      const xs = itens.map((it) => it.x);
-      const ys = itens.map((it) => it.y);
-      const centro = L.point((Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2);
-      mapa.obj.panTo(mapa.obj.layerPointToLatLng(centro), { animate: false });
-      // após o pan, as coordenadas de camada continuam válidas (o pan não muda o zoom)
-    }
-    for (const it of itens) {
-      const destino = mapa.obj.layerPointToLatLng(L.point(it.x, it.y));
-      it.m.setLatLng(destino);
-      const desloc = Math.hypot(it.x - it.ox, it.y - it.oy);
-      if (desloc > 3 && mapa.ligacoes) {
-        L.polyline([it.m.base, destino], { className: 'ligacao-bairro', interactive: false }).addTo(mapa.ligacoes);
-        L.circleMarker(it.m.base, { radius: 3, className: 'ponto-bairro', interactive: false }).addTo(mapa.ligacoes);
-      }
-    }
   }
 
   function renderMapa() {
@@ -936,11 +869,9 @@
     setTimeout(() => {
       mapa.obj.invalidateSize();
       if (!mapa.ajustado && pontos.length) {
-        mapa.obj.fitBounds(L.latLngBounds(pontos), { padding: [70, 70] });
+        mapa.obj.fitBounds(L.latLngBounds(pontos), { padding: [40, 40] });
         mapa.ajustado = true;
-        mapa.centrar = true;
       }
-      posicionarMarcadores();
     }, 0);
 
     renderDetalheBairro(resumo, cand, cores);
@@ -1009,9 +940,17 @@
     renderControles();
     renderTrilha();
     const noMapa = estado.tela === 'mapa';
-    el.gradeTabela.hidden = noMapa;
+    const naLideranca = estado.tela === 'liderancas';
+    el.gradeTabela.hidden = noMapa || naLideranca;
     el.gradeMapa.hidden = !noMapa;
-    if (noMapa) renderMapa();
+    el.telaLiderancas.hidden = !naLideranca;
+    el.filtros.hidden = naLideranca;
+    el.resumo.hidden = naLideranca;
+    if (naLideranca) {
+      if (window.Liderancas) Liderancas.mostrar({ el: el.telaLiderancas, cdMun: estado.mun, nomeMun: nomeMun(), municipios: db.municipios });
+      else el.telaLiderancas.innerHTML = '<section class="painel"><div class="vazio">Módulo de lideranças não carregado.</div></section>';
+    }
+    else if (noMapa) renderMapa();
     else if (estado.cand) renderCandidato();
     else renderRanking();
     gravarHash(empilhar);
@@ -1036,7 +975,7 @@
   function executarAcao(acao, valor) {
     if (acao === 'vermais') { expandido[valor] = !expandido[valor]; render(false); return; }
     if (acao === 'inicio') { estado.cand = ''; estado.bairro = ''; estado.busca = ''; estado.tela = 'tabela'; }
-    else if (acao === 'tela') { estado.tela = valor === 'mapa' ? 'mapa' : 'tabela'; }
+    else if (acao === 'tela') { estado.tela = ['mapa', 'liderancas'].includes(valor) ? valor : 'tabela'; }
     else if (acao === 'cargo') { estado.cand = ''; estado.busca = ''; }
     else if (acao === 'ranking') { estado.cand = ''; }
     else if (acao === 'cand') { estado.cand = valor; estado.busca = ''; }

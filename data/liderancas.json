@@ -1,0 +1,7 @@
+{
+  "_comentario": "Base inicial do mapeamento de lideranças (opcional). O site guarda o cadastro no localStorage do navegador; exporte pelo botão Exportar e substitua este arquivo para compartilhar o cadastro com outras pessoas ou outro computador.",
+  "versao": 1,
+  "liderancas": [],
+  "candidatos2026": [],
+  "importados": {}
+}
