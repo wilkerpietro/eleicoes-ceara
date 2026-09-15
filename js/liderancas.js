@@ -127,12 +127,13 @@
       }
       for (const c of copias) {
         for (const k of CAMPOS_MESCLA) if (vazioValor(fica[k]) && !vazioValor(c[k])) fica[k] = c[k];
-        for (const [chave, ap] of Object.entries(c.apoio2026 || {})) {
-          if (!ap || !ap.candidato_id) continue;
-          fica.apoio2026 = fica.apoio2026 || {};
-          const atual = fica.apoio2026[chave];
-          if (!atual || !atual.candidato_id) fica.apoio2026[chave] = ap;
-          else if (atual.candidato_id !== ap.candidato_id) conflitos.add('apoio 2026 (' + chave + ')');
+        for (const chave of Object.keys(c.apoio2026 || {})) {
+          for (const ap of apoiosBrutos(c, chave)) {
+            const atuais = apoiosBrutos(fica, chave);
+            if (atuais.some((x) => x.candidato_id === ap.candidato_id)) continue;
+            if (atuais.length < MAX_APOIOS) definirApoios(fica, chave, atuais.concat([ap]));
+            else conflitos.add('apoio 2026 (' + chave + ')');
+          }
         }
         remover.add(c.id);
       }
@@ -287,10 +288,11 @@
     const chavePara = CHAVE_CARGO[t.cargo];
     let movidos = 0;
     for (const l of dados.liderancas) {
-      const a = l.apoio2026 && l.apoio2026[chaveDe];
-      if (!a || a.candidato_id !== idManual) continue;
-      l.apoio2026[chavePara] = { candidato_id: idTse, estimativa: a.estimativa || 0 };
-      if (chaveDe !== chavePara) l.apoio2026[chaveDe] = null;
+      const a = apoiosBrutos(l, chaveDe).find((x) => x.candidato_id === idManual);
+      if (!a) continue;
+      definirApoios(l, chaveDe, apoiosBrutos(l, chaveDe).filter((x) => x.candidato_id !== idManual));
+      const destino = apoiosBrutos(l, chavePara);
+      if (!destino.some((x) => x.candidato_id === idTse)) definirApoios(l, chavePara, destino.concat([{ candidato_id: idTse, estimativa: a.estimativa || 0 }]));
       movidos++;
     }
     dados.candidatos2026 = dados.candidatos2026.filter((c) => c.id !== idManual);
@@ -395,12 +397,24 @@
   const doMunicipio = (cd) => dados.liderancas.filter((l) => l.cd_mun === cd);
   const porId = (id) => dados.liderancas.find((l) => l.id === id) || null;
 
-  function apoio(l, chave) {
+  const MAX_APOIOS = 2; // uma liderança pode apoiar até dois candidatos por cargo (o segundo sempre pede confirmação)
+
+  /** Apoios gravados de uma liderança para um cargo, sempre como lista (aceita o formato antigo: um objeto só). */
+  function apoiosBrutos(l, chave) {
     const a = l.apoio2026 && l.apoio2026[chave];
-    if (!a || !a.candidato_id) return null;
-    const c = candidato2026(a.candidato_id);
-    return c ? { c, estimativa: Number(a.estimativa) || 0 } : null;
+    if (!a) return [];
+    return (Array.isArray(a) ? a : [a]).filter((x) => x && x.candidato_id);
   }
+  function definirApoios(l, chave, lista) {
+    l.apoio2026 = l.apoio2026 || {};
+    l.apoio2026[chave] = lista.length ? lista.slice(0, MAX_APOIOS) : null;
+  }
+  /** Apoios de um cargo com o candidato resolvido: [{ c, estimativa, candidato_id }]. */
+  function apoios(l, chave) {
+    return apoiosBrutos(l, chave).map((a) => { const c = candidato2026(a.candidato_id); return c ? { c, estimativa: Number(a.estimativa) || 0, candidato_id: a.candidato_id } : null; }).filter(Boolean);
+  }
+  function apoio(l, chave) { return apoios(l, chave)[0] || null; }
+  const nomesApoios = (lista) => lista.map((a) => a.c.nome).join(' e ');
 
   /** Os 3 bairros em que a liderança (candidata a vereador em 2024) teve mais votos, como texto: "Lagoinha, Camboas e Boa Vista". */
   function bairrosTexto(l) {
@@ -416,7 +430,7 @@
   /** Expectativa de votos da liderança em 2026: o campo próprio ou, se vazio, a maior estimativa entre os seus candidatos. */
   function expectativa2026(l) {
     if (l.votos2026 != null && l.votos2026 !== '') return Number(l.votos2026) || 0;
-    return Math.max(0, ...CARGOS_APOIO.map((c) => { const a = apoio(l, CHAVE_CARGO[c]); return a ? a.estimativa : 0; }));
+    return Math.max(0, ...CARGOS_APOIO.map((c) => apoios(l, CHAVE_CARGO[c]).reduce((s, a) => s + a.estimativa, 0)));
   }
 
   function grupo(candId, cd) {
@@ -424,8 +438,9 @@
     if (!c) return { itens: [], total: 0 };
     const chave = CHAVE_CARGO[c.cargo];
     const itens = dados.liderancas
-      .filter((l) => (!cd || l.cd_mun === cd) && l.apoio2026 && l.apoio2026[chave] && l.apoio2026[chave].candidato_id === candId)
-      .map((l) => ({ l, estimativa: Number(l.apoio2026[chave].estimativa) || 0 }))
+      .filter((l) => !cd || l.cd_mun === cd)
+      .map((l) => { const a = apoiosBrutos(l, chave).find((x) => x.candidato_id === candId); return a ? { l, estimativa: Number(a.estimativa) || 0 } : null; })
+      .filter(Boolean)
       .sort((a, b) => b.estimativa - a.estimativa || (b.l.votos2024 || 0) - (a.l.votos2024 || 0));
     return { itens, total: itens.reduce((s, i) => s + i.estimativa, 0), chave, c };
   }
@@ -436,11 +451,11 @@
     for (const l of dados.liderancas) {
       if (cd && l.cd_mun !== cd) continue;
       for (const cargo of CARGOS_APOIO) {
-        const a = apoio(l, CHAVE_CARGO[cargo]);
-        if (!a) continue;
-        if (!mapa.has(a.c.id)) mapa.set(a.c.id, { c: a.c, n: 0, total: 0, municipios: new Set() });
-        const e = mapa.get(a.c.id);
-        e.n++; e.total += a.estimativa; e.municipios.add(l.cd_mun);
+        for (const a of apoios(l, CHAVE_CARGO[cargo])) {
+          if (!mapa.has(a.c.id)) mapa.set(a.c.id, { c: a.c, n: 0, total: 0, municipios: new Set() });
+          const e = mapa.get(a.c.id);
+          e.n++; e.total += a.estimativa; e.municipios.add(l.cd_mun);
+        }
       }
     }
     return Array.from(mapa.values()).sort((a, b) => CARGOS_2026.indexOf(a.c.cargo) - CARGOS_2026.indexOf(b.c.cargo) || b.total - a.total);
@@ -680,10 +695,10 @@
   function renderDetalhes(l) {
     const linha = (rotulo, valor) => '<div class="la-det"><span class="rotulo">' + esc(rotulo) + '</span><span class="valor">' + (valor || '<span class="dica">—</span>') + '</span></div>';
     const apoios26 = CARGOS_APOIO.map((cargo) => {
-      const a = apoio(l, CHAVE_CARGO[cargo]);
-      return '<div class="la-det"><span class="rotulo">' + esc(cargo) + '</span><span class="valor">' + (a
-        ? '<span class="cand-linha">' + avatar(a.c.nome, a.c.foto, 28) + '<span>' + esc(a.c.nome) + (a.c.partido ? ' (' + esc(a.c.partido) + ')' : '') + (a.c.numero ? ' · nº ' + esc(a.c.numero) : '') +
-          '<br><small class="dica">estimativa: ' + fmtInt(a.estimativa) + ' votos</small></span></span>'
+      const lista = apoios(l, CHAVE_CARGO[cargo]);
+      return '<div class="la-det"><span class="rotulo">' + esc(cargo) + (lista.length > 1 ? ' · 2 candidatos' : '') + '</span><span class="valor">' + (lista.length
+        ? lista.map((a) => '<span class="cand-linha">' + avatar(a.c.nome, a.c.foto, 28) + '<span>' + esc(a.c.nome) + (a.c.partido ? ' (' + esc(a.c.partido) + ')' : '') + (a.c.numero ? ' · nº ' + esc(a.c.numero) : '') +
+          '<br><small class="dica">estimativa: ' + fmtInt(a.estimativa) + ' votos</small></span></span>').join('<br>')
         : '<span class="dica">—</span>') + '</span></div>';
     }).join('');
     return '<div class="la-modal-topo"><span class="cand-linha">' + avatar(l.nome, l.foto, 72) + '<span><strong class="la-modal-nome">' + esc(l.nome) + '</strong>' + selo(l) +
@@ -719,11 +734,15 @@
     const ehPref = l && l.origem === 'prefeito2024';
     const linha2026 = (cargo) => {
       const chave = CHAVE_CARGO[cargo];
-      const a = l ? apoio(l, chave) : null;
-      return '<div class="la-2026"><span class="rotulo">' + esc(cargo) + '</span><div class="la-linha">' +
-        '<input name="cand_' + chave + '" list="la-c26-' + chave + '" placeholder="candidato (lista do TSE)" value="' + (a ? esc(rotuloCand(a.c)) : '') + '" autocomplete="off">' +
-        datalistCandidatos('la-c26-' + chave, cargo) +
-        '<input name="est_' + chave + '" type="number" min="0" step="1" placeholder="votos p/ ele" value="' + (a && a.estimativa ? a.estimativa : '') + '"></div></div>';
+      const lista = l ? apoios(l, chave) : [];
+      // até dois candidatos por cargo: o 2º é opcional e pede confirmação ao salvar
+      return '<div class="la-2026"><span class="rotulo">' + esc(cargo) + '</span>' + [0, 1].map((n) => {
+        const a = lista[n];
+        return '<div class="la-linha">' +
+          '<input name="cand_' + chave + '_' + (n + 1) + '" list="la-c26-' + chave + '" placeholder="' + (n ? '2º candidato (opcional)' : 'candidato (lista do TSE)') + '" value="' + (a ? esc(rotuloCand(a.c)) : '') + '" autocomplete="off">' +
+          (n ? '' : datalistCandidatos('la-c26-' + chave, cargo)) +
+          '<input name="est_' + chave + '_' + (n + 1) + '" type="number" min="0" step="1" placeholder="votos p/ ele" value="' + (a && a.estimativa ? a.estimativa : '') + '"></div>';
+      }).join('') + '</div>';
     };
     return '<div class="la-modal-topo"><h2>' + (l ? 'Editar liderança' : 'Nova liderança') + '</h2>' +
       (ehVer ? '<span class="dica">Candidato a ' + (ehPref ? 'prefeito' : 'vereador') + ' em 2024 · ' + fmtInt(l.votos2024) + ' votos · ' + esc(l.situacao2024 || '') + '</span>' : '') + '</div>' +
@@ -812,9 +831,9 @@
         '<td class="texto"><span class="cand-linha">' + avatar(i.l.nome, i.l.foto, 30) + '<span><strong>' + esc(i.l.nome) + '</strong>' + (i.l.partido ? '<small class="dica"> · ' + esc(i.l.partido) + '</small>' : '') +
           (bairrosTexto(i.l) ? '<br><small class="dica">' + esc(bairrosTexto(i.l)) + '</small>' : '') + '</span></span></td>' +
         '<td class="num">' + votos24(i.l) + '</td>' +
-        '<td class="num"><input type="number" min="0" step="1" class="la-est" value="' + (i.estimativa || '') + '" data-la="estimativa" data-id="' + i.l.id + '" data-chave="' + g.chave + '"></td>' +
+        '<td class="num"><input type="number" min="0" step="1" class="la-est" value="' + (i.estimativa || '') + '" data-la="estimativa" data-id="' + i.l.id + '" data-chave="' + g.chave + '" data-cand="' + c.id + '"></td>' +
         '<td class="la-td-acoes"><button type="button" class="btn btn-mini" data-la="abrir" data-id="' + i.l.id + '" title="Ficha da liderança">Ficha</button> ' +
-          '<button type="button" class="btn btn-mini" data-la="remover-grupo" data-id="' + i.l.id + '" data-chave="' + g.chave + '" title="Tirar do grupo">×</button></td></tr>').join('') ||
+          '<button type="button" class="btn btn-mini" data-la="remover-grupo" data-id="' + i.l.id + '" data-chave="' + g.chave + '" data-cand="' + c.id + '" title="Tirar do grupo">×</button></td></tr>').join('') ||
         '<tr><td colspan="5" class="vazio">Nenhuma liderança no grupo ainda. Adicione abaixo.</td></tr>') +
       '</tbody><tfoot><tr><td colspan="2">Total em ' + esc(ctx.nomeMun) + '</td><td class="num">' + fmtInt(base2024) + '</td><td class="num">' + fmtInt(g.total) + '</td><td></td></tr></tfoot></table></div>' +
       '<form data-la="form-add" data-chave="' + g.chave + '" data-cand="' + c.id + '" class="la-linha la-add">' +
@@ -926,18 +945,35 @@
     if (!foiCandidato2024(reg)) reg.reduto = String(f.get('reduto') || '').trim(); // lideranças manuais: bairros/localidades onde têm força
     reg.apoio2026 = reg.apoio2026 || {};
     const naoEncontrados = [];
+    const novos = {};
     for (const cargo of CARGOS_APOIO) {
       const chave = CHAVE_CARGO[cargo];
-      const texto = String(f.get('cand_' + chave) || '').trim();
-      const est = parseInt(f.get('est_' + chave), 10);
-      if (!texto) { reg.apoio2026[chave] = null; continue; }
-      const c = resolverCandidato(texto, cargo);
-      if (!c) { naoEncontrados.push(cargo + ': "' + texto + '"'); continue; }
-      reg.apoio2026[chave] = { candidato_id: c.id, estimativa: isNaN(est) ? (reg.votos2026 || 0) : est };
+      const lista = [];
+      for (const n of [1, 2]) {
+        const texto = String(f.get('cand_' + chave + '_' + n) || '').trim();
+        const est = parseInt(f.get('est_' + chave + '_' + n), 10);
+        if (!texto) continue;
+        const c = resolverCandidato(texto, cargo);
+        if (!c) { naoEncontrados.push(cargo + ': "' + texto + '"'); continue; }
+        if (lista.some((a) => a.candidato_id === c.id)) continue; // o mesmo candidato duas vezes conta uma
+        lista.push({ candidato_id: c.id, estimativa: isNaN(est) ? (reg.votos2026 || 0) : est });
+      }
+      novos[chave] = lista;
     }
     if (naoEncontrados.length) {
       alert('Candidato não encontrado na lista de 2026 (escolha um nome da lista ou cadastre manualmente):\n' + naoEncontrados.join('\n'));
       return;
+    }
+    for (const cargo of CARGOS_APOIO) {
+      const chave = CHAVE_CARGO[cargo];
+      const lista = novos[chave];
+      // segundo candidato no mesmo cargo: sempre avisa que já apoia o primeiro
+      const antes = apoiosBrutos(reg, chave).map((a) => a.candidato_id);
+      if (lista.length > 1 && !(antes.includes(lista[0].candidato_id) && antes.includes(lista[1].candidato_id))) {
+        const c1 = candidato2026(lista[0].candidato_id), c2 = candidato2026(lista[1].candidato_id);
+        if (!confirm(reg.nome + ' já apoia ' + c1.nome + ' para ' + cargo + '. Manter também ' + c2.nome + ' como segundo candidato?')) lista.length = 1;
+      }
+      definirApoios(reg, chave, lista);
     }
     if (!l) dados.liderancas.push(reg);
     ui.editando = null; ui.novoCandidato = false; ui.modal = reg.id;
@@ -1011,14 +1047,14 @@
       if (!m) return;
       const g = grupo(m.id, null);
       if (!confirm('Excluir o candidato manual "' + m.nome + '"?' + (g.itens.length ? ' ' + g.itens.length + ' liderança(s) perderão esse apoio.' : ''))) return;
-      for (const l of dados.liderancas) { const k = CHAVE_CARGO[m.cargo]; if (l.apoio2026 && l.apoio2026[k] && l.apoio2026[k].candidato_id === m.id) l.apoio2026[k] = null; }
+      for (const l of dados.liderancas) { const k = CHAVE_CARGO[m.cargo]; if (apoiosBrutos(l, k).some((a) => a.candidato_id === m.id)) definirApoios(l, k, apoiosBrutos(l, k).filter((a) => a.candidato_id !== m.id)); }
       dados.candidatos2026 = dados.candidatos2026.filter((c) => c.id !== m.id);
       if (ui.candidato === m.id) ui.candidato = '';
       salvar(); render();
     }
     else if (acao === 'remover-grupo') {
       const l = porId(alvo.dataset.id);
-      if (l && l.apoio2026) { l.apoio2026[alvo.dataset.chave] = null; salvar(); render(); }
+      if (l && l.apoio2026) { definirApoios(l, alvo.dataset.chave, apoiosBrutos(l, alvo.dataset.chave).filter((a) => a.candidato_id !== alvo.dataset.cand)); salvar(); render(); }
     }
   }
 
@@ -1036,7 +1072,8 @@
     }
     else if (acao === 'estimativa') {
       const l = porId(alvo.dataset.id);
-      if (l && l.apoio2026 && l.apoio2026[alvo.dataset.chave]) { l.apoio2026[alvo.dataset.chave].estimativa = parseInt(alvo.value, 10) || 0; salvar(); render(); }
+      const a = l ? apoiosBrutos(l, alvo.dataset.chave).find((x) => x.candidato_id === alvo.dataset.cand) : null;
+      if (a) { a.estimativa = parseInt(alvo.value, 10) || 0; definirApoios(l, alvo.dataset.chave, apoiosBrutos(l, alvo.dataset.chave)); salvar(); render(); }
     }
   }
 
@@ -1123,12 +1160,20 @@
       const l = porId(String(f.get('lideranca') || ''));
       if (!l) return;
       const digitada = parseInt(f.get('estimativa'), 10);
-      l.apoio2026 = l.apoio2026 || {};
-      const atual = apoio(l, form.dataset.chave);
+      const chave = form.dataset.chave;
       const destino = candidato2026(form.dataset.cand || ui.candidato);
-      if (atual && destino && atual.c.id !== destino.id &&
-          !confirm(l.nome + ' já apoia ' + atual.c.nome + ' para ' + atual.c.cargo + '. Uma liderança apoia um candidato por cargo. Mover para ' + destino.nome + '?')) return;
-      l.apoio2026[form.dataset.chave] = { candidato_id: form.dataset.cand || ui.candidato, estimativa: isNaN(digitada) ? expectativa2026(l) : digitada };
+      if (!destino) return;
+      const lista = apoiosBrutos(l, chave);
+      const atuais = apoios(l, chave);
+      const jaTem = lista.find((a) => a.candidato_id === destino.id);
+      if (jaTem) { jaTem.estimativa = isNaN(digitada) ? jaTem.estimativa : digitada; }
+      else {
+        if (lista.length >= MAX_APOIOS) { alert(l.nome + ' já apoia ' + nomesApoios(atuais) + ' para ' + destino.cargo + '. Uma liderança apoia no máximo ' + MAX_APOIOS + ' candidatos por cargo; tire um deles para incluir ' + destino.nome + '.'); return; }
+        // segundo candidato no mesmo cargo: sempre avisa que já apoia o primeiro
+        if (atuais.length && !confirm(l.nome + ' já apoia ' + nomesApoios(atuais) + ' para ' + destino.cargo + '. Adicionar ' + destino.nome + ' como segundo candidato?')) return;
+        lista.push({ candidato_id: destino.id, estimativa: isNaN(digitada) ? expectativa2026(l) : digitada });
+      }
+      definirApoios(l, chave, lista);
       salvar(); render();
     }
   }
