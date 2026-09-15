@@ -60,6 +60,7 @@
     dicaMapa: $('#dica-mapa'),
     mapa: $('#mapa'),
     mapaAviso: $('#mapa-aviso'),
+    gradeBarras: $('#grade-barras'),
     legendaMapa: $('#legenda-mapa'),
     tituloBairro: $('#titulo-bairro'),
     detalheBairro: $('#detalhe-bairro'),
@@ -861,13 +862,27 @@
     renderLegendaMapa(cores, cand);
 
     const semGeo = !db.temBairros || geo.size === 0;
-    el.mapaAviso.hidden = !semGeo;
+    const emGrade = semGeo && db.temBairros; // há bairros mas não há coordenadas: grade com os gráficos por bairro
+    el.mapaAviso.hidden = !semGeo || emGrade;
+    el.gradeBarras.hidden = !emGrade;
     el.mapa.hidden = semGeo;
-    el.legendaMapa.hidden = semGeo;
+    el.legendaMapa.hidden = semGeo && !emGrade;
+    if (emGrade) {
+      const metricaGrade = cand ? 'votosCand' : 'validos';
+      const ordenados = Array.from(resumo.entries()).filter(([nome]) => nome).sort((a, b) => b[1][metricaGrade] - a[1][metricaGrade] || a[0].localeCompare(b[0], 'pt-BR'));
+      el.dicaMapa.textContent = 'Os bairros de ' + nomeMun() + ' ainda não têm coordenadas para o mapa; cada quadro abaixo mostra ' +
+        (cand ? 'os votos do candidato' : 'os 3 mais votados') + ' no bairro, do maior para o menor. Clique para ver os detalhes.';
+      el.gradeBarras.innerHTML = ordenados.map(([nome, r]) => {
+        const selecionado = nome === estado.bairro;
+        return '<button type="button" class="grade-barras-item' + (selecionado ? ' atual' : '') + '" data-acao="bairro" data-valor="' + esc(selecionado ? '' : nome) + '" title="' + esc(titulo(nome)) + '">' +
+          htmlBarras(r, cores, cand, selecionado, nome).html +
+          '<small>' + (cand ? fmtInt(r.votosCand) + ' votos · ' + fmtPct(pct(r.votosCand, r.validos)) : fmtInt(r.validos) + ' votos válidos') + '</small></button>';
+      }).join('') || '<div class="vazio">Nenhum bairro com votos.</div>';
+      renderDetalheBairro(resumo, cand, cores);
+      return;
+    }
     if (semGeo) {
-      el.mapaAviso.textContent = db.temBairros
-        ? 'Os bairros de ' + nomeMun() + ' ainda não têm coordenadas em data/bairros.json.'
-        : 'Os dados do TSE para ' + nomeMun() + ' não trazem o bairro de cada local de votação; o mapa depende dessa informação. Os totais do município continuam ao lado.';
+      el.mapaAviso.textContent = 'Os dados do TSE para ' + nomeMun() + ' não trazem o bairro de cada local de votação; o mapa depende dessa informação. Os totais do município continuam ao lado.';
       renderDetalheBairro(resumo, cand, cores);
       return;
     }

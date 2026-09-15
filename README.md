@@ -140,7 +140,7 @@ powershell -ExecutionPolicy Bypass -File scripts/reduzir-fotos.ps1 -Pasta data/2
 
 - **2022**: Governador, Senador, Deputado Federal e Deputado Estadual vêm de `votacao_secao_2022_CE`; **Presidente** vem de `votacao_secao_2022_BR` filtrado para o Ceará e anexado com `ANEXAR=1`. Em Paraipaba, a soma de votos para Presidente difere em 1 voto do resultado por seção do TRE-CE usado na primeira versão.
 - **2024**: Vereador vem do arquivo do portal de resultados (`votacao_secao-uf_prefeito_t1_2024_ce`, que apesar do nome só traz Vereador, mas inclui aptos por seção); **Prefeito** vem dos dados abertos (`votacao_secao_2024_CE`, layout "aberto"), anexado com `LAYOUT=aberto ANEXAR=1`. Cadastro e fotos de 2024: `consulta_cand_2024_CE` e `foto_cand2024_CE_div`.
-- Só Paraipaba tem coordenadas de bairros; nos demais municípios a tela de mapa avisa que faltam coordenadas e as tabelas funcionam normalmente por bairro, local e seção. No agregado "Todos os municípios" o mapa mostra um quadro por município (coordenadas da sede em `data/bairros.json`, chave `todos`).
+- Só Paraipaba tem coordenadas de bairros; nos demais municípios a tela Mapa dos votos mostra, no lugar do mapa, uma grade de 3 colunas com o gráfico dos 3 mais votados de cada bairro (do maior para o menor bairro; clique abre os detalhes), e as tabelas funcionam normalmente por bairro, local e seção. No agregado "Todos os municípios" o mapa mostra um quadro por município (coordenadas da sede em `data/bairros.json`, chave `todos`).
 - Em Paraipaba 2022, as seções 208 e 212 foram agregadas às seções 152 (Pedrinhas) e 162 (Camburão); os votos delas aparecem nas seções principais, conforme os boletins de urna.
 
 ## Roteiro
