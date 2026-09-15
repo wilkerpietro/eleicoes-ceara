@@ -56,6 +56,8 @@
     tfoot: $('#tabela tfoot'),
     rodapeTabela: $('#rodape-tabela'),
     rodapeMapa: $('#rodape-mapa'),
+    tituloBairro: $('#titulo-bairro'),
+    detalheBairro: $('#detalhe-bairro'),
     tituloMapa: $('#titulo-mapa'),
     dicaMapa: $('#dica-mapa'),
     mapa: $('#mapa'),
@@ -778,7 +780,7 @@
     el.mapaAviso.hidden = true;
     el.mapa.hidden = false;
     el.legendaMapa.hidden = false;
-    if (!garantirMapa()) { renderRodapeMapa(resumo, cand); return; }
+    if (!garantirMapa()) { renderPainelBairro(resumo, cand, cores); return; }
     mapa.camada.clearLayers();
     mapa.marcadores.clear();
 
@@ -838,7 +840,7 @@
       }
     }, 0);
 
-    renderRodapeMapa(resumo, cand);
+    renderPainelBairro(resumo, cand, cores);
   }
 
   function renderMapa() {
@@ -877,15 +879,15 @@
           htmlBarras(r, cores, cand, selecionado, nome).html +
           '<small>' + (cand ? fmtInt(r.votosCand) + ' votos · ' + fmtPct(pct(r.votosCand, r.validos)) : fmtInt(r.validos) + ' votos válidos') + '</small></button>';
       }).join('') || '<div class="vazio">Nenhum bairro com votos.</div>';
-      renderRodapeMapa(resumo, cand);
+      renderPainelBairro(resumo, cand, cores);
       return;
     }
     if (semGeo) {
       el.mapaAviso.textContent = 'Os dados do TSE para ' + nomeMun() + ' não trazem o bairro de cada local de votação; o mapa depende dessa informação. Os totais do município continuam ao lado.';
-      renderRodapeMapa(resumo, cand);
+      renderPainelBairro(resumo, cand, cores);
       return;
     }
-    if (!garantirMapa()) { renderRodapeMapa(resumo, cand); return; }
+    if (!garantirMapa()) { renderPainelBairro(resumo, cand, cores); return; }
 
     mapa.camada.clearLayers();
     mapa.marcadores.clear();
@@ -929,11 +931,11 @@
       }
     }, 0);
 
-    renderRodapeMapa(resumo, cand);
+    renderPainelBairro(resumo, cand, cores);
   }
 
   /** Rodapé do mapa: totais do bairro selecionado (ou do município) em texto pequeno, no lugar do antigo painel lateral. */
-  function renderRodapeMapa(resumo, cand) {
+  function renderPainelBairro(resumo, cand, cores) {
     const geral = !estado.bairro || !resumo.has(estado.bairro);
     const rk = rankingCandidatos();
     let r, votosCand = 0, posicaoCand = null, ranking = rk.linhas;
@@ -953,6 +955,16 @@
     const acoes = geral ? ''
       : '<button type="button" class="link" data-acao="secoes" data-valor="' + esc(estado.bairro) + '">Ver seções do ' + NOME_POR.bairro + '</button>' +
         '<button type="button" class="link" data-acao="bairro" data-valor="">Limpar seleção</button>';
+    // painel lateral: lista dos mais votados (sem pizza) e, abaixo dela, o rodapé com os totais
+    el.tituloBairro.textContent = geral ? 'Detalhes gerais · ' + nomeMun() : titulo(estado.bairro);
+    let html = geral ? '<div class="dica">Clique em um ' + NOME_POR.bairro + ' no mapa (ou escolha no filtro) para ver os detalhes dele.</div>' : '';
+    html += '<div class="detalhe-sub">Mais votados ' + onde + ' · ' + ranking.length + ' candidatos</div>' + listaCandidatos(ranking, r.totais.validos, cores, 'mapa');
+    if (cand && posicaoCand && posicaoCand > 5 && !expandido.mapa) {
+      const c = ranking[posicaoCand - 1];
+      html += '<div class="detalhe-lista"><div class="detalhe-item atual"><span class="pos">' + c.posicao + 'º</span>' + avatar(c.nome, c.numero, 30) + '<span class="nome">' + esc(c.nome) + '<small>' + esc(c.partido) + '</small></span>' +
+        '<span class="num">' + fmtInt(c.votos) + '<small>' + fmtPct(pct(c.votos, r.totais.validos)) + '</small></span></div></div>';
+    }
+    el.detalheBairro.innerHTML = html;
     el.rodapeMapa.innerHTML = htmlRodapeTotais(r, { prefixo, acoes });
     el.rodapeMapa.hidden = false;
   }
