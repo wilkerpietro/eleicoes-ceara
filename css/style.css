@@ -471,3 +471,32 @@ body.la-modal-aberto { overflow: hidden; }
 .legenda-degrade { gap: 6px; }
 .legenda-degrade .degrade { display: inline-block; width: 90px; height: 10px; border-radius: 3px; border: 1px solid rgba(0, 0, 0, 0.12); background: linear-gradient(90deg, color-mix(in srgb, var(--cor) 12%, #fff), var(--cor)); }
 .legenda-mapa small { color: var(--texto-fraca); }
+
+/* ---------- Eleições 2026: mapa estimativo de votos por bairro ---------- */
+.la-grade-mapa { display: grid; grid-template-columns: 1fr 360px; gap: 14px; align-items: start; }
+@media (max-width: 1100px) { .la-grade-mapa { grid-template-columns: 1fr; } }
+.la-mapa { height: 540px; border-radius: var(--raio-p); border: 1px solid var(--borda); background: #eef0f2; overflow: hidden; }
+@media (max-width: 860px) { .la-mapa { height: 400px; } }
+.la-marc-wrap { background: transparent; border: 0; }
+.la-marc { display: flex; flex-direction: column; align-items: center; width: max-content; background: rgba(255, 255, 255, 0.95); border: 2px solid var(--cor, var(--primaria)); border-radius: 10px; padding: 3px 8px 2px; box-shadow: 0 1px 4px rgba(17, 24, 39, 0.28); cursor: pointer; white-space: nowrap; transform: translate(-50%, -50%); }
+.la-marc b { font-size: 13px; line-height: 1.1; color: var(--texto); font-variant-numeric: tabular-nums; }
+.la-marc span { font-size: 9.5px; line-height: 1.2; color: var(--texto-suave); max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+.la-marc.selecionado { border-color: #b45309; box-shadow: 0 0 0 2px rgba(180, 83, 9, 0.25); }
+.la-marc.pequeno b { font-size: 11px; }
+.la-marc.grande b { font-size: 16px; }
+.la-lista-bairros { display: flex; flex-direction: column; gap: 6px; }
+.la-bairro-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px 10px; border: 1px solid var(--borda); border-radius: var(--raio-p); background: #fff; color: inherit; font: inherit; cursor: pointer; }
+.la-bairro-item:hover { background: var(--painel-suave); border-color: var(--borda-forte); }
+.la-bairro-item.atual { background: #fff7e6; border-color: #f3d9a4; }
+.la-bairro-item .nome { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.la-bairro-item .nome small { display: block; font-weight: 400; color: var(--texto-suave); font-size: 0.78rem; }
+.la-bairro-item .num { font-weight: 700; font-variant-numeric: tabular-nums; }
+.la-bairro-item .barra-mini { display: block; height: 5px; border-radius: 3px; background: var(--barra); margin-top: 4px; }
+.la-transfer { margin: 2px 0 8px 10px; padding-left: 10px; border-left: 2px solid var(--borda-forte); display: flex; flex-direction: column; gap: 5px; }
+.la-transfer .item { display: flex; align-items: center; gap: 8px; font-size: 0.88rem; }
+.la-transfer .item .nome { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.la-transfer .item .nome small { color: var(--texto-fraca); margin-left: 4px; }
+.la-transfer .item .num { font-weight: 600; font-variant-numeric: tabular-nums; }
+.la-mapa-cab { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.la-mapa-cab select { flex: 1; min-width: 240px; }
+.la-legenda-mapa { margin-top: 8px; font-size: 0.82rem; color: var(--texto-suave); }

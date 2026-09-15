@@ -20,7 +20,7 @@
   let tse2026 = null;   // candidatos de 2026 do TSE
   let ctx = null;       // contexto passado pelo app: { el, tela, cdMun, nomeMun, municipios, candidatos2026, fotos2026 }
   const cache = {};     // por município: listas de referência (vereadores/prefeitos 2024, deputados 2022)
-  const ui = { modal: null, editando: null, busca: '', candidato: '', abaEst: 'federal', cargo26: '', busca26: '', novoCandidato: false, aviso: '', erroSync: '', erroLogin: '', abaLogin: 'entrar', perfis: null };
+  const ui = { modal: null, editando: null, busca: '', candidato: '', abaEst: 'federal', candMapa: '', bairroMapa: '', cargo26: '', busca26: '', novoCandidato: false, aviso: '', erroSync: '', erroLogin: '', abaLogin: 'entrar', perfis: null };
   let perfilAtual = null; // perfil do usuário conectado no modo nuvem: { id, email, nome, aprovado, papel }
   const nuvemAtiva = () => !!(global.Sync && global.Sync.configurado());
   const usuarioLogado = () => (nuvemAtiva() ? global.Sync.usuario() : null);
@@ -338,6 +338,7 @@
     const candidato24 = (c, codigo) => ({
       numero: c.numero, sq: c.sq, nome: c.nome_urna || c.nome, nomeCompleto: c.nome, partido: c.partido, situacao: c.situacao,
       votos: votos.get(codigo + '|' + c.numero) || 0, foto: c.foto ? fotos24 + c.foto : '', bairros: top3(codigo + '|' + c.numero),
+      votosBairros: Array.from((porBairro.get(codigo + '|' + c.numero) || new Map()).entries()).map(([bairro, n]) => ({ bairro, votos: n })), // todos os bairros (mapa estimativo)
     });
     const ref = {
       vereadores: c24.filter((c) => c.cargo === 'Vereador').map((c) => candidato24(c, '13')).sort((a, b) => b.votos - a.votos),
@@ -445,6 +446,129 @@
     return Array.from(mapa.values()).sort((a, b) => CARGOS_2026.indexOf(a.c.cargo) - CARGOS_2026.indexOf(b.c.cargo) || b.total - a.total);
   }
 
+  /**
+   * Mapa estimativo: distribui a estimativa de cada liderança pelos bairros na proporção dos votos dela em 2024.
+   * Ex.: 600 votos em 2024 e estimativa 300 → um bairro em que teve 30 votos recebe 15. Lideranças manuais
+   * dividem a estimativa igualmente entre os bairros do campo "Reduto"; sem base, o valor fica em "sem bairro".
+   */
+  function estimativaPorBairro(cd, candId) {
+    const g = grupo(candId, cd);
+    const ref = cache[cd] || { vereadores: [], prefeitos: [], bairros: [] };
+    const bairros = new Map(); // bairro -> { bairro, votos, itens: [{ l, base, votos }] }
+    const semBairro = { bairro: '', votos: 0, itens: [] };
+    const somar = (bairro, l, base, v) => {
+      if (!bairros.has(bairro)) bairros.set(bairro, { bairro, votos: 0, itens: [] });
+      const b = bairros.get(bairro);
+      b.votos += v;
+      b.itens.push({ l, base, votos: v });
+    };
+    const chaveBairro = (s) => normalizar(s).replace(/[^a-z0-9]+/g, ' ').trim();
+    const conhecidos = new Map((ref.bairros || []).map((b) => [chaveBairro(b), b.toUpperCase()]));
+    for (const i of g.itens) {
+      const l = i.l, E = i.estimativa;
+      if (!E) continue;
+      if (foiCandidato2024(l)) {
+        const lista = l.origem === 'prefeito2024' ? ref.prefeitos : ref.vereadores;
+        const v = lista.find((x) => x.sq === l.sq || x.numero === l.numero);
+        const V = (v && v.votos) || l.votos2024 || 0;
+        if (v && V > 0 && v.votosBairros && v.votosBairros.length) {
+          for (const vb of v.votosBairros) if (vb.votos > 0) somar(vb.bairro, l, vb.votos, (vb.votos * E) / V);
+          continue;
+        }
+      } else if (l.reduto) {
+        const partes = l.reduto.split(/[,;\/]| e /i).map((p) => chaveBairro(p)).filter(Boolean);
+        const achados = Array.from(new Set(partes.map((p) => conhecidos.get(p)).filter(Boolean)));
+        if (achados.length) { for (const b of achados) somar(b, l, null, E / achados.length); continue; }
+      }
+      semBairro.votos += E; semBairro.itens.push({ l, base: null, votos: E });
+    }
+    for (const b of bairros.values()) b.itens.sort((a, c) => c.votos - a.votos);
+    semBairro.itens.sort((a, c) => c.votos - a.votos);
+    const lista = Array.from(bairros.values()).sort((a, b) => b.votos - a.votos);
+    return { c: g.c, chave: g.chave, itens: g.itens, total: g.total, bairros: lista, semBairro };
+  }
+
+  const mapa26 = { div: null, obj: null, camada: null, ajustadoPara: '' };
+
+  function renderMapaEstimativo(cd) {
+    const aba = ABAS_EST.find((a) => a.id === ui.abaEst) || ABAS_EST[0];
+    const cands = estimativasPorCandidato(cd).filter((e) => aba.cargos.includes(e.c.cargo));
+    if (!cands.some((e) => e.c.id === ui.candMapa)) ui.candMapa = cands.length ? cands[0].c.id : '';
+    const abas = '<div class="segmentado la-abas">' + ABAS_EST.map((a) => '<button type="button" class="' + (a.id === aba.id ? 'ativo' : '') + '" data-la="aba-est" data-valor="' + a.id + '">' + esc(a.rotulo) + '</button>').join('') + '</div>';
+    const seletor = '<select data-la="sel-cand-mapa" class="la-sel-grupo"' + (cands.length ? '' : ' disabled') + '>' +
+      (cands.length ? cands.map((e) => '<option value="' + e.c.id + '"' + (e.c.id === ui.candMapa ? ' selected' : '') + '>' + esc(rotuloCand(e.c)) + ' · ' + fmtInt(e.total) + ' votos estimados</option>').join('')
+        : '<option value="">— nenhum candidato a ' + esc(aba.rotulo) + ' com lideranças em ' + esc(ctx.nomeMun) + ' —</option>') + '</select>';
+    let corpo;
+    if (!ui.candMapa) {
+      corpo = '<div class="vazio">Ligue lideranças a um candidato a ' + esc(aba.rotulo) + ' (na ficha da liderança ou na tela Estimativa) para ver o mapa.</div>';
+    } else {
+      const e = estimativaPorBairro(cd, ui.candMapa);
+      const cor = ctx.corPartido ? ctx.corPartido(e.c.partido) : '#2f6fed';
+      const maximo = Math.max(1, ...e.bairros.map((b) => b.votos));
+      const temGeo = (ctx.geoBairros || []).length > 0;
+      if (ui.bairroMapa && !e.bairros.some((b) => b.bairro === ui.bairroMapa) && ui.bairroMapa !== '*') ui.bairroMapa = '';
+      const transfer = (itens) => '<div class="la-transfer">' + itens.map((i) => '<div class="item">' + avatar(i.l.nome, i.l.foto, 24) +
+        '<span class="nome">' + esc(i.l.nome) + (i.base != null ? '<small>' + fmtInt(i.base) + ' votos em 2024 aqui</small>' : (foiCandidato2024(i.l) ? '' : '<small>manual' + (i.l.reduto ? ' · reduto: ' + esc(i.l.reduto) : '') + '</small>')) + '</span>' +
+        '<span class="num">' + fmtInt(Math.round(i.votos)) + '</span></div>').join('') + '</div>';
+      const linhas = e.bairros.map((b) => {
+        const aberto = ui.bairroMapa === b.bairro;
+        return '<button type="button" class="la-bairro-item' + (aberto ? ' atual' : '') + '" data-la="bairro-mapa" data-valor="' + esc(b.bairro) + '">' +
+          '<span class="nome">' + esc(titulo(b.bairro)) + '<small>' + b.itens.length + (b.itens.length === 1 ? ' liderança' : ' lideranças') + '</small>' +
+          '<span class="barra-mini" style="width:' + Math.max(4, Math.round(100 * b.votos / maximo)) + '%;background:' + cor + '"></span></span>' +
+          '<span class="num">' + fmtInt(Math.round(b.votos)) + '</span></button>' + (aberto ? transfer(b.itens) : '');
+      }).join('');
+      const semB = e.semBairro.itens.length
+        ? '<button type="button" class="la-bairro-item' + (ui.bairroMapa === '*' ? ' atual' : '') + '" data-la="bairro-mapa" data-valor="*"><span class="nome">Sem bairro definido<small>' +
+          e.semBairro.itens.length + ' liderança(s) sem votos por bairro em 2024 nem reduto</small></span><span class="num">' + fmtInt(Math.round(e.semBairro.votos)) + '</span></button>' + (ui.bairroMapa === '*' ? transfer(e.semBairro.itens) : '')
+        : '';
+      corpo = '<div class="la-grade-mapa"><div>' +
+        (temGeo ? '<div class="la-mapa-slot"></div>' : '<div class="vazio">Os bairros de ' + esc(ctx.nomeMun) + ' ainda não têm coordenadas em data/bairros.json; a lista ao lado traz a estimativa por bairro.</div>') +
+        '<div class="la-legenda-mapa">Cada quadro mostra os votos estimados para <b>' + esc(e.c.nome) + '</b> no bairro. Regra: estimativa da liderança × (votos dela no bairro em 2024 ÷ votos dela em 2024). Clique no bairro para ver quem transfere.</div></div>' +
+        '<div><div class="cards la-cards-grupo">' + card(fmtInt(Math.round(e.total)), 'Estimativa em ' + ctx.nomeMun, e.itens.length + (e.itens.length === 1 ? ' liderança' : ' lideranças')) + '</div>' +
+        '<div class="detalhe-sub">Votos estimados por bairro</div><div class="la-lista-bairros">' + (linhas || '<div class="vazio">Nenhuma liderança com votos por bairro.</div>') + semB + '</div></div></div>';
+    }
+    return '<section class="painel"><div class="painel-cabecalho"><h2>Mapa estimativo 2026 em ' + esc(ctx.nomeMun) + '</h2>' +
+      '<span class="dica">Onde devem sair os votos de cada candidato, a partir das lideranças que o apoiam e de onde elas tiveram votos em 2024.</span></div>' +
+      '<div class="la-mapa-cab">' + abas + seletor + '</div>' + corpo + '</section>';
+  }
+
+  /** Cria (uma vez) o mapa Leaflet do mapa estimativo, encaixa no espaço renderizado e desenha os quadros por bairro. */
+  function montarMapaEstimativo(cd) {
+    const slot = ctx.el.querySelector('.la-mapa-slot');
+    if (!slot || typeof L === 'undefined' || !ui.candMapa) return;
+    if (!mapa26.div) {
+      mapa26.div = document.createElement('div');
+      mapa26.div.className = 'la-mapa';
+      mapa26.obj = L.map(mapa26.div, { scrollWheelZoom: true, zoomControl: true });
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors', maxZoom: 19 }).addTo(mapa26.obj);
+      mapa26.camada = L.layerGroup().addTo(mapa26.obj);
+    }
+    slot.appendChild(mapa26.div);
+    const e = estimativaPorBairro(cd, ui.candMapa);
+    const cor = ctx.corPartido ? ctx.corPartido(e.c.partido) : '#2f6fed';
+    const geo = new Map((ctx.geoBairros || []).filter((b) => b.lat != null && b.lng != null).map((b) => [b.nome, b]));
+    const maximo = Math.max(1, ...e.bairros.map((b) => b.votos));
+    mapa26.camada.clearLayers();
+    const pontos = [];
+    for (const b of e.bairros) {
+      const g = geo.get(b.bairro);
+      if (!g) continue;
+      const tam = b.votos >= maximo * 0.6 ? ' grande' : (b.votos < maximo * 0.15 ? ' pequeno' : '');
+      const html = '<div class="la-marc' + tam + (ui.bairroMapa === b.bairro ? ' selecionado' : '') + '" style="--cor:' + cor + '"><b>' + fmtInt(Math.round(b.votos)) + '</b><span>' + esc(titulo(b.bairro)) + '</span></div>';
+      const m = L.marker([g.lat, g.lng], { icon: L.divIcon({ html, className: 'la-marc-wrap', iconSize: [0, 0], iconAnchor: [0, 0] }), keyboard: false });
+      m.bindTooltip('<b>' + esc(titulo(b.bairro)) + '</b>' + b.itens.slice(0, 3).map((i) => esc(i.l.nome) + ' ' + fmtInt(Math.round(i.votos))).join(' · ') + (b.itens.length > 3 ? ' · +' + (b.itens.length - 3) : ''), { className: 'rotulo-bairro', direction: 'top', offset: [0, -22], opacity: 1 });
+      m.on('click', () => { ui.bairroMapa = ui.bairroMapa === b.bairro ? '' : b.bairro; render(); });
+      m.addTo(mapa26.camada);
+      pontos.push([g.lat, g.lng]);
+    }
+    // bairros com coordenadas mas sem estimativa também aparecem, discretos, para situar o mapa
+    for (const g of geo.values()) if (!e.bairros.some((b) => b.bairro === g.nome)) pontos.push([g.lat, g.lng]);
+    setTimeout(() => {
+      mapa26.obj.invalidateSize();
+      if (mapa26.ajustadoPara !== cd && pontos.length) { mapa26.obj.fitBounds(L.latLngBounds(pontos), { padding: [30, 30] }); mapa26.ajustadoPara = cd; }
+    }, 0);
+  }
+
   // ---------- render ----------
   const semMunicipio = () => !ctx.cdMun || ctx.cdMun === 'todos';
 
@@ -467,11 +591,13 @@
     if (tela === 'candidatos') corpo = renderCandidatos2026();
     else if (!acessoLiberado()) corpo = renderBloqueado(usuario);
     else if (tela === 'usuarios') corpo = ehAdmin() ? renderUsuarios() : '<section class="painel"><div class="vazio">Só administradores veem os usuários.</div></section>';
-    else if (semMunicipio()) corpo = '<section class="painel"><div class="vazio">Escolha um município na barra lateral para ' + (tela === 'estimativa' ? 'ver a estimativa de votos' : 'mapear as lideranças') + ' dele.</div></section>';
+    else if (semMunicipio()) corpo = '<section class="painel"><div class="vazio">Escolha um município na barra lateral para ' + (tela === 'estimativa' ? 'ver a estimativa de votos' : tela === 'mapa26' ? 'ver o mapa estimativo' : 'mapear as lideranças') + ' dele.</div></section>';
     else if (tela === 'estimativa') corpo = renderEstimativa(ctx.cdMun, lista);
+    else if (tela === 'mapa26') corpo = renderMapaEstimativo(ctx.cdMun);
     else corpo = renderLiderancas(ctx.cdMun, lista);
     ctx.el.innerHTML = status + aviso + corpo + renderModal();
     document.body.classList.toggle('la-modal-aberto', !!ui.modal);
+    if (tela === 'mapa26' && acessoLiberado() && !semMunicipio()) montarMapaEstimativo(ctx.cdMun);
   }
 
   // ---------- tela Lideranças ----------
@@ -869,6 +995,7 @@
     else if (acao === 'novo-cand-form') { ui.novoCandidato = CARGOS_APOIO[1]; render(); const i = ctx.el.querySelector('.la-novo-cand input[name="nome"]'); if (i) i.focus(); }
     else if (acao === 'aba-est') { ui.abaEst = alvo.dataset.valor; ui.novoCandidato = false; render(); }
     else if (acao === 'detalhar') { ui.candidato = ui.candidato === alvo.dataset.id ? '' : alvo.dataset.id; render(); }
+    else if (acao === 'bairro-mapa') { ui.bairroMapa = ui.bairroMapa === alvo.dataset.valor ? '' : alvo.dataset.valor; render(); }
     else if (acao === 'ver-grupo') { ui.candidato = alvo.dataset.id; if (ctx.irPara) ctx.irPara('estimativa'); else render(); }
     else if (acao === 'mesclar') {
       const m = dados.candidatos2026.find((c) => c.id === alvo.dataset.manual);
@@ -900,6 +1027,7 @@
     if (!alvo) return;
     const acao = alvo.dataset.la;
     if (acao === 'importar' && alvo.files && alvo.files[0]) { importar(alvo.files[0]); alvo.value = ''; }
+    else if (acao === 'sel-cand-mapa') { ui.candMapa = alvo.value; ui.bairroMapa = ''; render(); }
     else if (acao === 'sel-grupo') {
       ui.candidato = alvo.value;
       const c = candidato2026(alvo.value);
