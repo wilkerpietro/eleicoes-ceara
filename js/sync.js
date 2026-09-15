@@ -109,8 +109,9 @@
 
   // ---------- leitura ----------
   async function carregarLiderancas(cdMun) {
-    const data = checar(await cliente.from('liderancas').select('dados').eq('cd_mun', cdMun));
-    return (data || []).map((r) => r.dados);
+    const data = checar(await cliente.from('liderancas').select('dados, atualizado_em').eq('cd_mun', cdMun));
+    // a data da última gravação vai junto, mas fora do JSON gravado (propriedade não enumerável)
+    return (data || []).map((r) => Object.defineProperty(r.dados, '_atualizadoEm', { value: r.atualizado_em, enumerable: false, writable: true }));
   }
 
   async function carregarCandidatos() {

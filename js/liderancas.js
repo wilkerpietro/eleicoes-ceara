@@ -53,7 +53,7 @@
   // Modo nuvem (Supabase, ver js/sync.js): as lideranças são carregadas por município e cada
   // alteração é gravada linha a linha; modo local: tudo no localStorage.
   const nuvem = () => !!(global.Sync && global.Sync.configurado());
-  const municipiosCarregados = new Set();
+  const municipiosCarregados = new Map(); // cd -> promessa da carga (evita duas cargas do mesmo município ao mesmo tempo)
   const snapshot = { liderancas: new Map(), candidatos: new Map(), importados: new Map() }; // último estado gravado na nuvem
   let gravando = null;
 
@@ -79,13 +79,68 @@
   }
 
   /** Modo nuvem: traz as lideranças e a marca de importação de um município (uma vez por sessão). */
-  async function carregarMunicipio(cd) {
-    if (!nuvem() || municipiosCarregados.has(cd)) return;
-    const [lista, marca] = await Promise.all([global.Sync.carregarLiderancas(cd), global.Sync.carregarImportado(cd)]);
-    dados.liderancas = dados.liderancas.filter((l) => l.cd_mun !== cd).concat(lista);
-    for (const l of lista) snapshot.liderancas.set(l.id, JSON.stringify(l));
-    if (marca) { dados.importados[cd] = marca; snapshot.importados.set(cd, marca); }
-    municipiosCarregados.add(cd);
+  function carregarMunicipio(cd) {
+    if (!nuvem()) return Promise.resolve();
+    if (!municipiosCarregados.has(cd)) {
+      const carga = (async () => {
+        const [lista, marca] = await Promise.all([global.Sync.carregarLiderancas(cd), global.Sync.carregarImportado(cd)]);
+        dados.liderancas = dados.liderancas.filter((l) => l.cd_mun !== cd).concat(lista);
+        for (const l of lista) snapshot.liderancas.set(l.id, JSON.stringify(l));
+        if (marca) { dados.importados[cd] = marca; snapshot.importados.set(cd, marca); }
+      })();
+      municipiosCarregados.set(cd, carga);
+      carga.catch(() => municipiosCarregados.delete(cd)); // falhou: permite tentar de novo
+    }
+    return municipiosCarregados.get(cd);
+  }
+
+  const vazioValor = (v) => v == null || v === '' || (typeof v === 'object' && !Object.keys(v).length);
+  const CAMPOS_MESCLA = ['nomeCompleto', 'partido', 'numero', 'votos2024', 'situacao2024', 'foto', 'apoio2022_estadual', 'apoio2022_federal', 'apoio2024_prefeito', 'apoio2024_vereador'];
+
+  /**
+   * Junta lideranças repetidas do mesmo candidato de 2024 (mesmo município e mesmo sequencial do TSE),
+   * criadas por importações duplicadas. Fica o registro mais antigo; os campos vazios dele são preenchidos
+   * com os das cópias; expectativa 2026 e observação ficam com o valor editado mais recentemente; os apoios
+   * de 2026 são unidos SEM alterar os do registro que fica. Devolve um relato por liderança unificada.
+   */
+  function unificarDuplicados(cd) {
+    const grupos = new Map();
+    for (const l of dados.liderancas) {
+      if (l.cd_mun !== cd || !l.sq) continue;
+      if (!grupos.has(l.sq)) grupos.set(l.sq, []);
+      grupos.get(l.sq).push(l);
+    }
+    const quando = (l) => String(l._atualizadoEm || l.criadoEm || '');
+    const relatos = [];
+    const remover = new Set();
+    for (const lista of grupos.values()) {
+      if (lista.length < 2) continue;
+      lista.sort((a, b) => String(a.criadoEm || '').localeCompare(String(b.criadoEm || '')) || String(a.id).localeCompare(String(b.id)));
+      const fica = lista[0];
+      const copias = lista.slice(1);
+      const conflitos = new Set();
+      const maisRecentes = lista.slice().sort((a, b) => quando(b).localeCompare(quando(a)));
+      for (const k of ['votos2026', 'obs']) {
+        const valores = maisRecentes.filter((l) => !vazioValor(l[k]));
+        if (valores.length > 1 && new Set(valores.map((l) => JSON.stringify(l[k]))).size > 1) conflitos.add(k === 'votos2026' ? 'expectativa 2026' : 'observação');
+        if (valores.length) fica[k] = valores[0][k];
+      }
+      for (const c of copias) {
+        for (const k of CAMPOS_MESCLA) if (vazioValor(fica[k]) && !vazioValor(c[k])) fica[k] = c[k];
+        for (const [chave, ap] of Object.entries(c.apoio2026 || {})) {
+          if (!ap || !ap.candidato_id) continue;
+          fica.apoio2026 = fica.apoio2026 || {};
+          const atual = fica.apoio2026[chave];
+          if (!atual || !atual.candidato_id) fica.apoio2026[chave] = ap;
+          else if (atual.candidato_id !== ap.candidato_id) conflitos.add('apoio 2026 (' + chave + ')');
+        }
+        remover.add(c.id);
+      }
+      relatos.push(fica.nome + ': ' + copias.length + (copias.length === 1 ? ' cópia' : ' cópias') +
+        (conflitos.size ? ' — valores diferentes em ' + Array.from(conflitos).join(', ') + ' (mantido o mais recente; apoios do registro original preservados)' : ''));
+    }
+    if (remover.size) dados.liderancas = dados.liderancas.filter((l) => !remover.has(l.id));
+    return relatos;
   }
 
   function salvar() {
@@ -295,10 +350,17 @@
   }
 
   /** Inclui automaticamente os candidatos a vereador e a prefeito de 2024 do município (uma vez cada grupo). */
-  async function importarVereadores(cd) {
+  let importando = Promise.resolve();
+  function importarVereadores(cd) {
+    // uma importação por vez: duas cargas simultâneas não podem criar o mesmo candidato duas vezes
+    importando = importando.then(() => importarVereadoresAgora(cd)).catch((e) => { console.warn('importação:', e); return 0; });
+    return importando;
+  }
+  async function importarVereadoresAgora(cd) {
+    if (nuvem() && !global.Sync.usuario()) return 0; // sem login não há como gravar; importa depois de entrar
+    await carregarMunicipio(cd); // garante que a marca "já importado" e as lideranças da nuvem estejam na memória
     const marca = dados.importados[cd]; // true = só vereadores (versão antiga); 'completo' = vereadores e prefeitos
     if (marca === 'completo') return 0;
-    if (nuvem() && !global.Sync.usuario()) return 0; // sem login não há como gravar; importa depois de entrar
     const ref = await referencias(cd);
     const existentes = new Set(dados.liderancas.filter((l) => l.cd_mun === cd && l.sq).map((l) => l.sq));
     let n = 0;
@@ -897,10 +959,10 @@
       const botao = form.querySelector('button[type="submit"]');
       if (botao) { botao.disabled = true; botao.textContent = 'Entrando…'; }
       global.Sync.entrar(String(f.get('email') || '').trim(), String(f.get('senha') || ''))
-        .then(async () => {
+        .then(() => {
           ui.modal = null; ui.erroLogin = '';
-          // com login, os candidatos de 2024 do município podem ser importados se ainda não foram
-          if (!semMunicipio()) await importarVereadores(ctx.cdMun);
+          // a recarga (perfil, lideranças da nuvem e importação pendente) acontece uma única vez em aoMudarSessao,
+          // disparada pela troca de usuário — chamar a importação aqui gerava cópias a cada login
           render();
         })
         .catch((e) => { ui.erroLogin = e.message; render(); });
@@ -963,7 +1025,12 @@
     ctx.el.innerHTML = '<section class="painel"><div class="vazio">Carregando…</div></section>';
     if (global.Sync) {
       await global.Sync.iniciar();
-      if (!ouvindoUsuario) { ouvindoUsuario = true; global.Sync.aoMudarUsuario(() => { aoMudarSessao(); }); }
+      if (!ouvindoUsuario) {
+        ouvindoUsuario = true;
+        ultimoUsuario = usuarioLogado() ? usuarioLogado().id : null;
+        // o Supabase repete o evento de sessão (ex.: ao voltar para a aba); só recarrega quando o usuário muda de fato
+        global.Sync.aoMudarUsuario((u) => { const id = u ? u.id : null; if (id === ultimoUsuario) return; ultimoUsuario = id; aoMudarSessao(); });
+      }
     }
     if (nuvemAtiva()) perfilAtual = usuarioLogado() ? await global.Sync.perfil() : null;
     atualizarMenuAdmin();
@@ -975,19 +1042,30 @@
     const unificados = unificarConhecidos();
     if (unificados.length) ui.aviso = 'Unificados com o cadastro do TSE: ' + unificados.join('; ') + '.';
     if (!semMunicipio()) {
+      // cópias criadas por importações repetidas são juntadas (e a limpeza gravada, se houver login)
+      const repetidas = unificarDuplicados(ctx.cdMun);
+      if (repetidas.length) {
+        ui.aviso = 'Lideranças repetidas unificadas — ' + repetidas.join('; ') + '.';
+        if (!nuvem() || global.Sync.usuario()) salvar();
+      }
       await referencias(ctx.cdMun);
       await importarVereadores(ctx.cdMun);
     }
     render();
   }
 
-  /** Recarrega o perfil após entrar/sair e retoma a carga dos dados quando o acesso estiver liberado. */
-  async function aoMudarSessao() {
-    perfilAtual = usuarioLogado() ? await global.Sync.perfil() : null;
-    atualizarMenuAdmin();
-    if (acessoLiberado() && ctx) { dados = null; municipiosCarregados.clear(); snapshot.liderancas.clear(); snapshot.candidatos.clear(); snapshot.importados.clear(); await mostrar(ctx); }
-    else render();
+  /** Recarrega o perfil após entrar/sair e retoma a carga dos dados quando o acesso estiver liberado (uma recarga por vez). */
+  let recarregando = Promise.resolve();
+  function aoMudarSessao() {
+    recarregando = recarregando.then(async () => {
+      perfilAtual = usuarioLogado() ? await global.Sync.perfil() : null;
+      atualizarMenuAdmin();
+      if (acessoLiberado() && ctx) { dados = null; municipiosCarregados.clear(); snapshot.liderancas.clear(); snapshot.candidatos.clear(); snapshot.importados.clear(); await mostrar(ctx); }
+      else render();
+    }).catch((e) => { ui.erroSync = 'Falha ao recarregar a sessão: ' + e.message; render(); });
+    return recarregando;
   }
+  let ultimoUsuario = null;
 
   function atualizarMenuAdmin() {
     const item = document.querySelector('.lateral [data-tela="usuarios"]');
