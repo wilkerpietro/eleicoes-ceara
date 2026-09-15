@@ -95,7 +95,7 @@
   }
 
   const vazioValor = (v) => v == null || v === '' || (typeof v === 'object' && !Object.keys(v).length);
-  const CAMPOS_MESCLA = ['nomeCompleto', 'partido', 'numero', 'votos2024', 'situacao2024', 'foto', 'apoio2022_estadual', 'apoio2022_federal', 'apoio2024_prefeito', 'apoio2024_vereador'];
+  const CAMPOS_MESCLA = ['reduto', 'nomeCompleto', 'partido', 'numero', 'votos2024', 'situacao2024', 'foto', 'apoio2022_estadual', 'apoio2022_federal', 'apoio2024_prefeito', 'apoio2024_vereador'];
 
   /**
    * Junta lideranças repetidas do mesmo candidato de 2024 (mesmo município e mesmo sequencial do TSE),
@@ -344,6 +344,7 @@
       prefeitos: c24.filter((c) => c.cargo === 'Prefeito').map((c) => candidato24(c, '11')).sort((a, b) => b.votos - a.votos),
       estaduais2022: c22.filter((c) => c.cargo === 'Deputado Estadual').map((c) => (c.nome_urna || c.nome) + ' (' + c.partido + ')'),
       federais2022: c22.filter((c) => c.cargo === 'Deputado Federal').map((c) => (c.nome_urna || c.nome) + ' (' + c.partido + ')'),
+      bairros: Array.from(new Set(s24.map((s) => s.bairro || '').filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')).map(titulo), // para o campo "Reduto" das lideranças manuais
     };
     cache[cd] = ref;
     return ref;
@@ -487,7 +488,8 @@
       (filtradas.map((l) => '<tr class="clicavel" data-la="abrir" data-id="' + l.id + '">' +
         '<td class="texto"><span class="cand-linha">' + avatar(l.nome, l.foto, 40) + '<span><strong>' + esc(l.nome) + '</strong>' +
           (l.partido ? '<small class="dica"> · ' + esc(l.partido) + '</small>' : '') + '</span></span></td>' +
-        '<td class="num">' + (foiCandidato2024(l) ? fmtInt(l.votos2024) + ' <small class="dica">votos em 2024' + (l.origem === 'prefeito2024' ? ' (prefeito)' : '') + '</small>' + (bairrosTexto(l) ? '<span class="la-bairros">' + esc(bairrosTexto(l)) + '</span>' : '') : '<span class="dica">—</span>') + '</td>' +
+        '<td class="num">' + (foiCandidato2024(l) ? fmtInt(l.votos2024) + ' <small class="dica">votos em 2024' + (l.origem === 'prefeito2024' ? ' (prefeito)' : '') + '</small>' + (bairrosTexto(l) ? '<span class="la-bairros">' + esc(bairrosTexto(l)) + '</span>' : '')
+          : (l.reduto ? '<small class="dica">reduto</small><span class="la-bairros">' + esc(l.reduto) + '</span>' : '<span class="dica">—</span>')) + '</td>' +
         '<td class="num">' + (expectativa2026(l) ? fmtInt(expectativa2026(l)) : '<span class="dica">—</span>') + '</td>' +
         '<td class="la-td-acoes"><button type="button" class="btn btn-mini" data-la="abrir" data-id="' + l.id + '">Detalhes</button></td></tr>').join('') ||
         '<tr><td colspan="4" class="vazio">Nenhuma liderança' + (q ? ' encontrada para "' + esc(ui.busca) + '"' : ' cadastrada') + '.</td></tr>') +
@@ -563,6 +565,7 @@
         (l.partido ? '<br><small class="dica">' + esc(l.partido) + '</small>' : '') + '</span></span></div>' +
       '<div class="la-det-grid">' +
         linha('Votos em 2024' + (l.origem === 'prefeito2024' ? ' (prefeito)' : ''), foiCandidato2024(l) ? fmtInt(l.votos2024) + (l.situacao2024 ? ' <small class="dica">· ' + esc(l.situacao2024) + '</small>' : '') + (bairrosTexto(l) ? '<br><small class="dica">Mais votado em: ' + esc(bairrosTexto(l)) + '</small>' : '') : '') +
+        (foiCandidato2024(l) ? '' : linha('Reduto', esc(l.reduto))) +
         linha('Expectativa de votos em 2026', expectativa2026(l) ? fmtInt(expectativa2026(l)) : '') +
         linha('2022 · trabalhou para Dep. Estadual', esc(l.apoio2022_estadual)) +
         linha('2022 · trabalhou para Dep. Federal', esc(l.apoio2022_federal)) +
@@ -601,6 +604,7 @@
       '<form data-la="form" data-id="' + (l ? l.id : '') + '" class="la-grid">' +
       '<label class="campo"><span>Nome</span><input name="nome" required value="' + v('nome') + '"' + (ehVer ? ' readonly' : '') + '></label>' +
       '<label class="campo"><span>Partido / grupo</span><input name="partido" value="' + v('partido') + '"></label>' +
+      (ehVer ? '' : '<label class="campo"><span>Reduto (bairros ou localidades onde tem força)</span><input name="reduto" list="la-reduto" value="' + v('reduto') + '" autocomplete="off" placeholder="ex.: Lagoinha, Camboas"></label>' + datalist('la-reduto', ref.bairros || [])) +
       '<label class="campo"><span>Expectativa de votos em 2026 (a distribuir para os seus candidatos)</span><input name="votos2026" type="number" min="0" step="1" value="' + v('votos2026') + '" placeholder="' + (l && l.votos2024 ? 'ex.: ' + l.votos2024 : 'votos') + '"></label>' +
       '<label class="campo"><span>2022 · trabalhou para (Dep. Estadual)</span><input name="apoio2022_estadual" list="la-est22" value="' + v('apoio2022_estadual') + '" autocomplete="off"></label>' + datalist('la-est22', ref.estaduais2022) +
       '<label class="campo"><span>2022 · trabalhou para (Dep. Federal)</span><input name="apoio2022_federal" list="la-fed22" value="' + v('apoio2022_federal') + '" autocomplete="off"></label>' + datalist('la-fed22', ref.federais2022) +
@@ -793,6 +797,7 @@
     reg.apoio2024_prefeito = String(f.get('apoio2024_prefeito') || '').trim();
     if (reg.origem !== 'vereador2024') reg.apoio2024_vereador = String(f.get('apoio2024_vereador') || '').trim();
     reg.obs = String(f.get('obs') || '').trim();
+    if (!foiCandidato2024(reg)) reg.reduto = String(f.get('reduto') || '').trim(); // lideranças manuais: bairros/localidades onde têm força
     reg.apoio2026 = reg.apoio2026 || {};
     const naoEncontrados = [];
     for (const cargo of CARGOS_APOIO) {
