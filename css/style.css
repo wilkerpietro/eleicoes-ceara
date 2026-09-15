@@ -224,7 +224,7 @@ tfoot td { font-weight: 600; background: var(--painel-suave); border-top: 1px so
 .nav-item > span:not(.contagem):not(.pill) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- mapa ---------- */
-.grade-mapa { grid-template-columns: 1fr 360px; }
+.grade-mapa { grid-template-columns: 1fr; }
 .mapa { height: 560px; border-radius: var(--raio-p); border: 1px solid var(--borda); background: #eef0f2; overflow: hidden; }
 .leaflet-container { font: inherit; }
 .leaflet-tooltip.rotulo-bairro { border: 1px solid var(--borda-forte); border-radius: 8px; box-shadow: var(--sombra); padding: 6px 10px; font-size: 0.85rem; color: var(--texto); }
@@ -510,3 +510,4 @@ body.la-modal-aberto { overflow: hidden; }
 .grade-barras-item .mini-barras { box-shadow: none; }
 .grade-barras-item .mini-barras .rotulo-b { max-width: 160px; font-size: 11px; }
 .grade-barras-item small { font-size: 0.8rem; color: var(--texto-suave); }
+.rodape-tabela .rodape-lugar b { color: var(--texto); font-size: 0.85rem; }

@@ -62,8 +62,6 @@
     mapaAviso: $('#mapa-aviso'),
     gradeBarras: $('#grade-barras'),
     legendaMapa: $('#legenda-mapa'),
-    tituloBairro: $('#titulo-bairro'),
-    detalheBairro: $('#detalhe-bairro'),
     fonte: $('#fonte'),
     linkRepo: $('#link-repo'),
   };
@@ -656,11 +654,14 @@
   }
 
   /** Totais do ranking em texto pequeno (rodapé da tabela e do mapa), no lugar dos antigos cartões. */
-  function htmlRodapeTotais(r) {
+  const rodapeItem = (rotulo, valor) => '<span class="rodape-item">' + rotulo + ' <b>' + valor + '</b></span>';
+  function htmlRodapeTotais(r, opcoes) {
     const t = r.totais;
     const semAptos = !db.temAptos;
-    const item = (rotulo, valor) => '<span class="rodape-item">' + rotulo + ' <b>' + valor + '</b></span>';
+    const item = rodapeItem;
+    const o = opcoes || {};
     return [
+      o.prefixo || '',
       item('Eleitores aptos', semAptos ? 'não disponível nesta base' : fmtInt(r.aptos)),
       item('Comparecimento', fmtInt(t.comparecimento) + (semAptos ? '' : ' <small>(' + fmtPct(pct(t.comparecimento, r.aptos)) + ')</small>')),
       semAptos ? '' : item('Abstenção', fmtPct(pct(r.aptos - t.comparecimento, r.aptos))),
@@ -669,7 +670,7 @@
       item('Nulos', fmtInt(t.nulo) + ' <small>(brancos e nulos: ' + fmtPct(pct(t.branco + t.nulo, t.comparecimento)) + ' do comparecimento)</small>'),
       item('Seções', fmtInt(r.nSecoes)),
       db.cfg.data ? item('Votação em', db.cfg.data.split('-').reverse().join('/')) : '',
-      estado.bairro ? '<button type="button" class="link" data-acao="bairro" data-valor="">Ver todo o município</button>' : '',
+      o.acoes !== undefined ? o.acoes : (estado.bairro ? '<button type="button" class="link" data-acao="bairro" data-valor="">Ver todo o município</button>' : ''),
     ].filter(Boolean).join('');
   }
 
@@ -777,7 +778,7 @@
     el.mapaAviso.hidden = true;
     el.mapa.hidden = false;
     el.legendaMapa.hidden = false;
-    if (!garantirMapa()) { renderDetalheBairro(resumo, cand, cores); return; }
+    if (!garantirMapa()) { renderRodapeMapa(resumo, cand); return; }
     mapa.camada.clearLayers();
     mapa.marcadores.clear();
 
@@ -837,7 +838,7 @@
       }
     }, 0);
 
-    renderDetalheBairro(resumo, cand, cores);
+    renderRodapeMapa(resumo, cand);
   }
 
   function renderMapa() {
@@ -847,9 +848,7 @@
     // modo candidato: cartão herói; ranking: os totais viram uma linha discreta no rodapé do mapa
     const rk = rankingCandidatos();
     el.resumo.hidden = !cand;
-    el.rodapeMapa.hidden = !!cand;
-    if (cand) renderResumoCandidato(cand, distribuicaoCandidato('bairro'), rk, escopo);
-    else { el.resumo.innerHTML = ''; el.rodapeMapa.innerHTML = htmlRodapeTotais(rk); }
+    if (cand) renderResumoCandidato(cand, distribuicaoCandidato('bairro'), rk, escopo); else el.resumo.innerHTML = '';
 
     const resumo = resumoBairros();
     const cores = coresPartidos();
@@ -878,15 +877,15 @@
           htmlBarras(r, cores, cand, selecionado, nome).html +
           '<small>' + (cand ? fmtInt(r.votosCand) + ' votos · ' + fmtPct(pct(r.votosCand, r.validos)) : fmtInt(r.validos) + ' votos válidos') + '</small></button>';
       }).join('') || '<div class="vazio">Nenhum bairro com votos.</div>';
-      renderDetalheBairro(resumo, cand, cores);
+      renderRodapeMapa(resumo, cand);
       return;
     }
     if (semGeo) {
       el.mapaAviso.textContent = 'Os dados do TSE para ' + nomeMun() + ' não trazem o bairro de cada local de votação; o mapa depende dessa informação. Os totais do município continuam ao lado.';
-      renderDetalheBairro(resumo, cand, cores);
+      renderRodapeMapa(resumo, cand);
       return;
     }
-    if (!garantirMapa()) { renderDetalheBairro(resumo, cand, cores); return; }
+    if (!garantirMapa()) { renderRodapeMapa(resumo, cand); return; }
 
     mapa.camada.clearLayers();
     mapa.marcadores.clear();
@@ -930,64 +929,32 @@
       }
     }, 0);
 
-    renderDetalheBairro(resumo, cand, cores);
+    renderRodapeMapa(resumo, cand);
   }
 
-  /** Totais do município no mesmo formato de um bairro (para "Detalhes gerais"). */
-  function resumoMunicipio(cand) {
-    const rk = rankingCandidatos();
-    const item = cand ? rk.linhas.find((l) => l.numero === cand.numero) : null;
-    return {
-      bairro: '', aptos: rk.aptos, nSecoes: rk.nSecoes, comparecimento: rk.totais.comparecimento, validos: rk.totais.validos,
-      legenda: rk.totais.legenda, branco: rk.totais.branco, nulo: rk.totais.nulo, ranking: rk.linhas, legendas: rk.legendas,
-      votosCand: item ? item.votos : 0, posicaoCand: item ? item.posicao : null,
-    };
-  }
-
-  function renderDetalheBairro(resumo, cand, cores) {
+  /** Rodapé do mapa: totais do bairro selecionado (ou do município) em texto pequeno, no lugar do antigo painel lateral. */
+  function renderRodapeMapa(resumo, cand) {
     const geral = !estado.bairro || !resumo.has(estado.bairro);
-    const r = geral ? resumoMunicipio(cand) : resumo.get(estado.bairro);
-    const lugar = geral ? nomeMun() : titulo(estado.bairro);
-    const onde = geral ? (noEstado() ? 'no Ceará' : 'no município') : 'no ' + NOME_POR.bairro;
-    el.tituloBairro.textContent = geral ? 'Detalhes gerais · ' + nomeMun() : titulo(estado.bairro);
-    const stat = (rotulo, valor, sub) => '<div class="detalhe-stat"><span class="rotulo">' + esc(rotulo) + '</span><span class="valor">' + esc(valor) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span></div>';
-
-    let html = geral ? '<div class="dica">Clique em um bairro no mapa (ou escolha no filtro) para ver os detalhes daquele bairro.</div>' : '';
-    if (cand) {
-      const fatias = fatiasVotos(r.ranking, r.legendas, r.validos, cores, cand, r.votosCand);
-      html += '<div class="pizza-bloco">' + svgPizza(fatias, 132, { titulo: 'Votos de ' + cand.nome + ' em ' + lugar }) +
-        '<div class="pizza-lista">' + fatias.map((f) => '<div class="item"><span class="ponto" style="background:' + f.cor + '"></span><span class="nome" title="' + esc(f.rotulo) + '">' + esc(f.rotulo) + '</span>' +
-          '<span class="num"><b>' + fmtPct(pct(f.valor, r.validos)) + '</b>' + fmtInt(f.valor) + '</span></div>').join('') + '</div></div>';
+    const rk = rankingCandidatos();
+    let r, votosCand = 0, posicaoCand = null, ranking = rk.linhas;
+    if (geral) {
+      r = { aptos: rk.aptos, nSecoes: rk.nSecoes, totais: rk.totais };
+      const item = cand ? rk.linhas.find((l) => l.numero === cand.numero) : null;
+      if (item) { votosCand = item.votos; posicaoCand = item.posicao; }
     } else {
-      html += blocoPizzaPartidos(r.ranking, r.legendas, r.validos, cores, 'Divisão dos votos válidos em ' + lugar);
+      const b = resumo.get(estado.bairro);
+      r = { aptos: b.aptos, nSecoes: b.nSecoes, totais: b };
+      votosCand = b.votosCand; posicaoCand = b.posicaoCand; ranking = b.ranking;
     }
-
-    html += '<div class="detalhe-stats">' +
-      stat('Eleitores aptos', db.temAptos ? fmtInt(r.aptos) : '—', r.nSecoes + ' seções') +
-      stat('Comparecimento', fmtInt(r.comparecimento), db.temAptos ? fmtPct(pct(r.comparecimento, r.aptos)) : 'apurados') +
-      stat('Válidos · ' + estado.cargo, fmtInt(r.validos), 'legenda ' + fmtInt(r.legenda)) +
-      stat('Brancos e nulos', fmtInt(r.branco + r.nulo), fmtPct(pct(r.branco + r.nulo, r.comparecimento))) +
-      '</div>';
-
-    if (cand) {
-      html += '<div class="detalhe-stats">' +
-        stat('Votos de ' + cand.nome, fmtInt(r.votosCand), fmtPct(pct(r.votosCand, r.validos)) + ' dos válidos') +
-        stat('Posição ' + onde, r.posicaoCand ? r.posicaoCand + 'º' : '—', 'entre ' + r.ranking.length) +
-        '</div>';
-    }
-
-    html += '<div class="detalhe-sub">Mais votados ' + onde + ' · ' + r.ranking.length + ' candidatos</div>' +
-      listaCandidatos(r.ranking, r.validos, cores, 'mapa');
-    if (cand && r.posicaoCand && r.posicaoCand > 5 && !expandido.mapa) {
-      const c = r.ranking[r.posicaoCand - 1];
-      html += '<div class="detalhe-lista"><div class="detalhe-item atual"><span class="pos">' + c.posicao + 'º</span>' + avatar(c.nome, c.numero, 30) + '<span class="nome">' + esc(c.nome) + '<small>' + esc(c.partido) + '</small></span>' +
-        '<span class="num">' + fmtInt(c.votos) + '<small>' + fmtPct(pct(c.votos, r.validos)) + '</small></span></div></div>';
-    }
-    html += '<div class="detalhe-acoes">' + (geral
-      ? '<button type="button" class="btn" data-acao="tela" data-valor="tabela">Ver tabelas do município</button>'
-      : '<button type="button" class="btn" data-acao="secoes" data-valor="' + esc(estado.bairro) + '">Ver seções do bairro</button>' +
-        '<button type="button" class="btn" data-acao="bairro" data-valor="">Limpar seleção</button>') + '</div>';
-    el.detalheBairro.innerHTML = html;
+    const onde = geral ? (noEstado() ? 'no Ceará' : 'no município') : 'no ' + NOME_POR.bairro;
+    const prefixo = '<span class="rodape-item rodape-lugar"><b>' + esc(geral ? nomeMun() : titulo(estado.bairro)) + '</b></span>' +
+      (cand ? rodapeItem('Votos de ' + esc(cand.nome), fmtInt(votosCand) + ' <small>(' + fmtPct(pct(votosCand, r.totais.validos)) + ' dos válidos' +
+        (posicaoCand ? ' · ' + posicaoCand + 'º ' + onde + ' entre ' + ranking.length : '') + ')</small>') : '');
+    const acoes = geral ? ''
+      : '<button type="button" class="link" data-acao="secoes" data-valor="' + esc(estado.bairro) + '">Ver seções do ' + NOME_POR.bairro + '</button>' +
+        '<button type="button" class="link" data-acao="bairro" data-valor="">Limpar seleção</button>';
+    el.rodapeMapa.innerHTML = htmlRodapeTotais(r, { prefixo, acoes });
+    el.rodapeMapa.hidden = false;
   }
 
   // ---------- render geral ----------
