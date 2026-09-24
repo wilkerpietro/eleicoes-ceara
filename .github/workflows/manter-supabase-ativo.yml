@@ -1,0 +1,44 @@
+# Mantém o banco do Supabase ativo.
+# No plano gratuito, o Supabase pausa o projeto depois de ~7 dias sem uso, e o login do site passa a
+# falhar com "Sem conexão com o banco de dados". Esta tarefa faz uma consulta leve ao banco a cada 3 dias.
+# Usa só a URL e a chave pública (publishable) que já estão em data/config.json; nenhum segredo é necessário.
+# Se o projeto já estiver pausado, a tarefa falha e o GitHub avisa por e-mail: reative em
+# https://supabase.com/dashboard (projeto eleicoes-ceara → Restore project).
+
+name: Manter Supabase ativo
+
+on:
+  schedule:
+    - cron: "17 11 */3 * *" # a cada 3 dias, 08:17 no horário de Brasília
+  workflow_dispatch: # permite rodar na mão pela aba Actions
+
+permissions:
+  contents: read
+
+jobs:
+  consultar-banco:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: data/config.json
+          sparse-checkout-cone-mode: false
+
+      - name: Consultar o banco
+        run: |
+          URL=$(jq -r '.supabase.url' data/config.json)
+          CHAVE=$(jq -r '.supabase.anonKey' data/config.json)
+          if [ -z "$URL" ] || [ "$URL" = "null" ]; then echo "::error::data/config.json sem URL do Supabase"; exit 1; fi
+          # consulta real ao Postgres (as regras de acesso devolvem lista vazia para quem não está logado; basta a consulta chegar)
+          for tentativa in 1 2 3; do
+            CODIGO=$(curl -s -o resposta.txt -w '%{http_code}' --max-time 30 \
+              -H "apikey: $CHAVE" -H "Authorization: Bearer $CHAVE" \
+              "$URL/rest/v1/liderancas?select=id&limit=1") || CODIGO=000
+            echo "Tentativa $tentativa: HTTP $CODIGO"
+            if [ "$CODIGO" = "200" ]; then echo "Banco ativo."; exit 0; fi
+            sleep 20
+          done
+          echo "::error::O banco não respondeu (HTTP $CODIGO). O projeto pode estar pausado: reative em https://supabase.com/dashboard (eleicoes-ceara → Restore project)."
+          cat resposta.txt 2>/dev/null || true
+          exit 1
