@@ -36,6 +36,8 @@
   }
 
   const configurado = () => !!cliente;
+  /** O site tem banco configurado em data/config.json (mesmo que a biblioteca do Supabase não tenha carregado). */
+  const esperado = () => !!(config && config.supabase && config.supabase.url && config.supabase.anonKey);
   const usuario = () => usuarioAtual;
   const aoMudarUsuario = (f) => ouvintes.push(f);
 
@@ -151,10 +153,29 @@
     checar(await cliente.from('municipios_importados').upsert(Object.assign({ cd_mun: cdMun, marca: String(marca) }, carimbo())));
   }
 
+  // ---------- apuração paralela (tabela apuracao, ver scripts/supabase-apuracao.sql) ----------
+  // A leitura é pública; por isso o registro guarda o nome de quem lançou (não o e-mail).
+  async function carregarApuracao() {
+    return checar(await cliente.from('apuracao').select('id, cd_mun, secao, dados, atualizado_em, atualizado_por')) || [];
+  }
+
+  async function gravarApuracao(reg, por) {
+    const linha = { id: reg.id, cd_mun: reg.cd_mun, secao: reg.secao, dados: reg.dados, atualizado_em: new Date().toISOString(), atualizado_por: por || null };
+    const data = checar(await cliente.from('apuracao').upsert(linha).select('id, cd_mun, secao, dados, atualizado_em, atualizado_por'));
+    return (data && data[0]) || linha;
+  }
+
+  async function excluirApuracao(id) {
+    // sem permissão o banco não acusa erro, só não apaga nada: confere pelo retorno
+    const data = checar(await cliente.from('apuracao').delete().eq('id', id).select('id'));
+    if (!data || !data.length) throw new Error('Nada foi apagado: confira se seu usuário está autorizado.');
+  }
+
   global.Sync = {
-    iniciar, configurado, usuario, aoMudarUsuario, entrar, entrarLink, definirSenha, sair,
+    iniciar, configurado, esperado, usuario, aoMudarUsuario, entrar, entrarLink, definirSenha, sair,
     cadastrar, perfil, listarPerfis, aprovarPerfil,
     carregarLiderancas, carregarCandidatos, carregarImportado,
     gravarLiderancas, excluirLiderancas, gravarCandidatos, excluirCandidatos, marcarImportado,
+    carregarApuracao, gravarApuracao, excluirApuracao,
   };
 })(window);

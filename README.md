@@ -36,6 +36,20 @@ Seção **Eleições 2026** no menu, com três telas, sempre para o município e
 - **Banco sempre ativo**: no plano gratuito o Supabase pausa o projeto após ~7 dias sem uso (o login passa a mostrar "Sem conexão com o banco de dados"). A tarefa `.github/workflows/manter-supabase-ativo.yml` consulta o banco a cada 3 dias com a chave pública de `data/config.json`, e também pode ser disparada na aba **Actions** do GitHub ("Run workflow"). Se o projeto já estiver pausado, a tarefa falha e o GitHub avisa por e-mail; aí é preciso reativar no painel do Supabase (projeto `eleicoes-ceara` → Restore project). O GitHub desliga tarefas agendadas de repositórios sem nenhum commit por 60 dias; nesse caso, reative a tarefa na aba Actions.
 - **Sem o banco configurado** (url e anonKey vazios em `data/config.json`), o site volta a salvar no navegador (`localStorage`), com **Exportar**/**Importar** em JSON no rodapé da tela Lideranças e `data/liderancas.json` como base inicial.
 
+## Apuração paralela 2026 (Paraipaba e Paracuru)
+
+Tela **Apuração paralela**, primeiro item de **Eleições 2026** no menu (link direto: `#tela=apuracao`). A equipe recebe as fotos dos boletins de urna e lança seção por seção; a tela soma tudo na hora.
+
+- **No topo**: votos apurados (comparecimento das seções lançadas), seções apuradas (ex.: `2/202`, com barra de progresso) e um cartão por candidato acompanhado com votos e percentual. Abas para ver os dois municípios juntos ou cada um.
+- **Por bairro**: uma linha por bairro com seções apuradas (`1/5`), votos apurados e o percentual de cada candidato (ex.: Lagoinha — Elmano 51,1%, Ciro 38,3%, Yury do Paredão 17,8%, Carlos Júnior 13,3%, Daniel Oliveira 8,9%). Na disputa com adversário (Elmano x Ciro), a célula de quem lidera fica verde (nosso) ou vermelha (adversário). Clicar no bairro abre as seções dele, com os números de cada boletim. No celular, cada bairro vira um cartão com um candidato por linha.
+- **Percentual** = votos do candidato ÷ votos válidos do cargo na área, e válidos = comparecimento − brancos − nulos (no proporcional, os válidos incluem a legenda).
+- **Lançar boletim** (só usuários autorizados, mesma conta do mapeamento de lideranças): município, número da seção (o site mostra o bairro e o local e troca o município sozinho se o número for do outro), comparecimento e, por cargo, os votos dos candidatos acompanhados, brancos e nulos, na ordem em que aparecem no boletim (Deputado Federal, Deputado Estadual, Governador). Enter passa para o próximo campo. O site confere ao vivo e recusa somas maiores que o comparecimento, e pede confirmação se o comparecimento passar muito do eleitorado de 2024. Lançar de novo uma seção já lançada mostra os números dela e substitui; também dá para apagar o boletim.
+- **Seções**: a lista vem de `data/2026-1/<município>/secoes.csv` se existir, senão de `data/2024-1/` (91 seções em Paraipaba e 111 em Paracuru). Seção nova, fora da lista: lance o boletim com o número dela e informe o bairro (ou use "Só incluir a seção, sem boletim" para ela já entrar na contagem). Seção que não existe mais: abra o bairro e marque **Sem urna**, para sair da contagem (dá para desfazer). Para usar a lista oficial de 2026, baixe do TRE-CE a lista "Seções Eleitorais no Estado" e rode `bash scripts/secoes-apuracao.sh <arquivo.csv>`.
+- **Candidatos acompanhados**: `data/apuracao.json` (cargo, número, nome curto e `chapa`: `true` para os nossos, `false` para adversários). Foto e partido vêm do cadastro do TSE de 2026. Os votos são gravados pelo número; trocar ou incluir candidatos não mexe nos boletins já lançados (candidato novo começa sem votos nas seções já lançadas).
+- **Onde ficam os dados**: tabela `apuracao` no Supabase, um registro por seção. **Antes de usar, rode `scripts/supabase-apuracao.sql` no SQL Editor do Supabase** (uma vez; pode repetir). Qualquer pessoa com o link vê a apuração (o boletim de urna é público); só usuários aprovados lançam, corrigem ou apagam. Para deixar a leitura só para a equipe, há duas linhas comentadas no fim do script. O registro guarda o nome de quem lançou (não o e-mail), visível só para a equipe na tela; o horário vem do relógio do banco.
+- **Atualização**: a tela relê os boletins a cada 20 segundos (e ao voltar para a aba), sem perder o que estiver sendo digitado no formulário.
+- Se a biblioteca do Supabase não carregar (internet ruim, bloqueio), a tela mostra erro em vez de salvar no navegador. Sem banco configurado em `data/config.json`, os boletins ficam no navegador (`localStorage`), útil só para testar.
+
 ## Como rodar localmente
 
 Os dados são carregados via `fetch`, então a página precisa ser servida por HTTP (abrir o `index.html` direto do disco não funciona).
@@ -59,8 +73,12 @@ index.html                 página única
 css/style.css              estilos
 js/csv.js                  leitor de CSV (separador ";")
 js/app.js                  carga dos dados, agregações e renderização
+js/apuracao.js             tela de apuração paralela 2026 (boletins de urna por seção)
 scripts/serve.ps1          servidor HTTP de desenvolvimento (Windows)
 scripts/build-municipios.sh  converte o "votacao_secao" do TSE em uma pasta por município
+scripts/secoes-apuracao.sh   lista de seções de 2026 da apuração (a partir da lista do TRE-CE)
+scripts/supabase-apuracao.sql  tabela e regras de acesso da apuração paralela
+data/apuracao.json         municípios, lista de seções e candidatos acompanhados na apuração paralela
 data/eleicoes.json         manifesto das eleições (pasta, lista de municípios, fotos)
 data/cargos.json           código do cargo (CD_CARGO do TSE) -> nome
 data/partidos.json         número do partido -> sigla, por ano

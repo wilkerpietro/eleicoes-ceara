@@ -511,3 +511,129 @@ body.la-modal-aberto { overflow: hidden; }
 .grade-barras-item .mini-barras .rotulo-b { max-width: 160px; font-size: 11px; }
 .grade-barras-item small { font-size: 0.8rem; color: var(--texto-suave); }
 .rodape-tabela .rodape-lugar b { color: var(--texto); font-size: 0.85rem; }
+
+/* ---------- apuração paralela 2026 ---------- */
+.tela-apuracao, .ap-corpo { display: flex; flex-direction: column; gap: 14px; }
+.ap-cabecalho { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px 16px; margin-bottom: 14px; }
+.ap-cabecalho h2 { margin: 0 0 2px; font-size: 1.2rem; }
+.ap-btn-lancar { font-size: 1rem; padding: 10px 18px; font-weight: 600; }
+.ap-abas { display: flex; flex-wrap: wrap; margin-bottom: 16px; }
+.ap-abas button { flex: 1 1 auto; }
+.ap-grandes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+.ap-grande { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: 1px solid var(--borda); border-radius: var(--raio-p); background: var(--painel-suave); min-width: 0; }
+.ap-grande strong { font-size: 2.3rem; line-height: 1.05; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.ap-progresso { display: block; height: 8px; border-radius: 4px; background: #e3e5e8; overflow: hidden; }
+.ap-progresso span { display: block; height: 100%; background: var(--verde); border-radius: 4px; }
+.ap-cands { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.ap-cand { display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto auto; align-items: center; gap: 6px 12px; padding: 12px 14px; border: 1px solid var(--borda); border-radius: var(--raio-p); background: #fff; }
+.ap-cand.chapa { border-color: #9fd8b6; background: #f3fbf6; }
+.ap-cand.adversario { background: var(--painel-suave); }
+.ap-cand-info { display: flex; flex-direction: column; min-width: 0; }
+.ap-cand-info strong { font-size: 1rem; }
+.ap-cand-num { display: flex; flex-direction: column; align-items: flex-end; }
+.ap-cand-num strong { font-size: 1.45rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.ap-cand-num span { font-size: 0.82rem; color: var(--texto-suave); font-variant-numeric: tabular-nums; }
+.ap-barra { grid-column: 1 / -1; display: block; height: 6px; border-radius: 3px; background: #e3e5e8; overflow: hidden; }
+.ap-barra span { display: block; height: 100%; background: var(--verde); }
+.ap-cand.adversario .ap-barra span { background: #9ca3af; }
+.selo.ap-selo-adv { background: #fde2e2; color: #a61b1b; }
+
+.ap-tabela th small { display: block; font-size: 0.66rem; font-weight: 500; text-transform: none; letter-spacing: 0; }
+.ap-tabela th.ap-adv, .ap-tabela td.ap-adv { color: var(--texto-suave); }
+.ap-tabela td.ap-pct b { display: block; font-size: 1rem; font-variant-numeric: tabular-nums; }
+.ap-tabela td.ap-pct small { display: block; font-size: 0.75rem; color: var(--texto-fraca); }
+.ap-tabela td.ap-ganha { background: #e5f6ec; }
+.ap-tabela td.ap-ganha b { color: #146c3a; }
+.ap-tabela td.ap-perde { background: #fdecec; }
+.ap-tabela td.ap-perde b { color: #a61b1b; }
+.ap-linha-bairro.ap-sem td { color: var(--texto-fraca); }
+.ap-tabela td.ap-nome-bairro { white-space: nowrap; }
+.ap-seta { display: inline-block; width: 1em; color: var(--texto-fraca); transition: transform 0.15s; }
+.ap-linha-bairro.aberto .ap-seta { transform: rotate(90deg); }
+.ap-linha-bairro.aberto td { background: var(--painel-suave); border-bottom-color: transparent; }
+.ap-linha-secoes > td { background: var(--painel-suave); padding: 4px 10px 12px; white-space: normal; }
+.ap-secoes { display: flex; flex-direction: column; gap: 6px; }
+.ap-secao { background: #fff; border: 1px solid var(--borda); border-radius: 8px; padding: 8px 10px; }
+.ap-secao.ap-fora { opacity: 0.7; }
+.ap-secao.ap-fora .ap-secao-topo strong { text-decoration: line-through; }
+.ap-secao-topo { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.ap-secao-topo .selo { margin-left: 0; }
+.ap-secao-acoes { margin-left: auto; display: flex; gap: 6px; }
+.ap-secao-votos { display: flex; flex-wrap: wrap; gap: 2px 16px; margin-top: 4px; font-size: 0.85rem; color: var(--texto-suave); }
+.ap-secao-votos b { color: var(--texto); font-variant-numeric: tabular-nums; }
+.ap-obs { margin-top: 4px; }
+.ap-nota { margin: 10px 2px 0; }
+.ap-ultimos ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.ap-ultimos li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 7px 0; border-top: 1px solid var(--borda); }
+.ap-ultimos li:first-child { border-top: 0; }
+.ap-ult-hora { font-variant-numeric: tabular-nums; color: var(--texto-suave); font-size: 0.85rem; min-width: 3em; }
+.ap-erro-leitura { background: #fff4e0; border-color: #f3d9a4; color: #8a5300; }
+
+/* popup de lançamento */
+.ap-modal { width: min(640px, 100%); }
+.ap-modal-login { width: min(440px, 100%); }
+.ap-modal-titulo { margin: 0 40px 14px 0; font-size: 1.15rem; }
+.ap-form { display: flex; flex-direction: column; gap: 12px; }
+.ap-form input, .ap-form textarea { font: inherit; padding: 9px 10px; border: 1px solid var(--borda-forte); border-radius: 9px; background: #fff; width: 100%; min-width: 0; }
+.ap-form input:focus, .ap-form textarea:focus { outline: 2px solid var(--primaria); outline-offset: 1px; }
+.ap-form .segmentado span { padding: 9px 14px; }
+.ap-form-linha { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: end; }
+.ap-campo-secao input, .ap-campo-comp input { font-size: 1.15rem; font-weight: 600; }
+.ap-info-secao { font-size: 0.88rem; color: var(--texto-suave); padding: 8px 10px; border-radius: 8px; background: var(--painel-suave); }
+.ap-info-secao.alerta { background: #fff4e0; color: #8a5300; }
+.ap-outra { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 10px; border: 1px dashed var(--borda-forte); border-radius: var(--raio-p); }
+.ap-outra[hidden] { display: none; }
+.ap-cargo { margin: 0; padding: 10px 12px 12px; border: 1px solid var(--borda); border-radius: var(--raio-p); background: var(--painel-suave); }
+.ap-cargo legend { padding: 0 6px; font-weight: 600; font-size: 0.95rem; }
+.ap-votos { display: flex; flex-direction: column; gap: 6px; }
+.ap-voto { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 0.92rem; min-width: 0; }
+.ap-voto .cand-linha { gap: 8px; min-width: 0; }
+.ap-form .ap-voto input { width: 120px; flex: none; font-size: 1.1rem; font-weight: 600; text-align: right; }
+.ap-voto-bn > span { padding-left: 38px; color: var(--texto-suave); }
+.ap-conferencia { margin-top: 8px; }
+.ap-conferencia:empty { display: none; }
+.ap-conferencia.excedeu { color: var(--vermelho); font-weight: 600; }
+.ap-erro { color: var(--vermelho); font-weight: 600; font-size: 0.9rem; padding: 8px 10px; border-radius: 8px; background: #fdecec; }
+.ap-erro[hidden] { display: none; }
+.ap-form-acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.ap-form-acoes [hidden] { display: none; }
+.ap-form-acoes .btn-primario { font-weight: 600; padding: 10px 18px; }
+.ap-btn-perigo { margin-left: auto; color: var(--vermelho); border-color: #f1b5b5; }
+.ap-btn-perigo:hover { background: #fdecec; }
+.ap-link { border: 0; background: transparent; padding: 0; font: inherit; color: var(--primaria); }
+.ap-link:hover { text-decoration: underline; }
+
+@media (max-width: 700px) {
+  .ap-grande strong { font-size: 1.8rem; }
+  .ap-grandes { gap: 8px; }
+  .ap-grande { padding: 10px 12px; }
+  .ap-cands { grid-template-columns: 1fr; }
+  .ap-btn-lancar { width: 100%; }
+  /* tabela por bairro vira uma lista de cartões */
+  .ap-tabela, .ap-tabela tbody, .ap-tabela tfoot { display: block; }
+  .ap-tabela thead { display: none; }
+  .ap-tabela tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 10px; padding: 10px 4px; border-bottom: 1px solid var(--borda); }
+  .ap-tabela td { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 2px 4px; border: 0; white-space: normal; }
+  .ap-tabela td:first-child { grid-column: 1 / -1; justify-content: flex-start; font-size: 1.02rem; }
+  .ap-tabela td[data-rotulo]::before { content: attr(data-rotulo); font-size: 0.8rem; color: var(--texto-suave); text-align: left; }
+  /* um candidato por linha: nome, percentual e votos */
+  .ap-tabela td.ap-pct { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto 5.5em; align-items: baseline; gap: 0 10px; border-radius: 6px; padding: 4px 6px; }
+  .ap-tabela td.ap-pct::before { font-size: 0.9rem; color: var(--texto); }
+  .ap-tabela td.ap-pct b { display: block; }
+  .ap-tabela td.ap-pct small { text-align: right; }
+  .ap-tabela td.ap-pct > .dica { grid-column: 2 / -1; text-align: right; }
+  /* bairro ainda sem seção apurada: uma linha só, com nome e seções */
+  .ap-tabela tr.ap-sem { grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; padding: 8px 4px; }
+  .ap-tabela tr.ap-sem td:first-child { grid-column: auto; font-size: 0.95rem; }
+  .ap-tabela tr.ap-sem td:nth-child(n+3) { display: none; }
+  .ap-tabela td.vazio { grid-column: 1 / -1; justify-content: center; }
+  .ap-tabela tfoot tr { background: var(--painel-suave); border-radius: 8px; }
+  .ap-tabela tfoot td { background: transparent; border: 0; }
+  .ap-linha-bairro.aberto td { background: transparent; }
+  .ap-linha-secoes { display: block !important; padding: 0 0 10px !important; }
+  .ap-linha-secoes > td { display: block; padding: 0; background: transparent; }
+  .ap-secao-acoes { margin-left: 0; width: 100%; }
+  .ap-form-linha { grid-template-columns: 1fr; }
+  .ap-outra { grid-template-columns: 1fr; }
+  .la-modal.ap-modal { padding: 18px 14px 16px; }
+}

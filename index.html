@@ -29,6 +29,7 @@
       <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
       <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
       <symbol id="i-fechar" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+      <symbol id="i-boletim" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="m9 13 2 2 4-4"/></symbol>
     </defs>
   </svg>
 
@@ -62,6 +63,9 @@
         </div>
         <div class="nav-titulo">Eleições 2026</div>
         <div id="nav-2026" class="nav-lista">
+          <button type="button" class="nav-item" data-tela="apuracao">
+            <svg class="icone"><use href="#i-boletim"/></svg><span>Apuração paralela</span>
+          </button>
           <button type="button" class="nav-item" data-tela="liderancas">
             <svg class="icone"><use href="#i-users"/></svg><span>Lideranças</span>
           </button>
@@ -142,6 +146,8 @@
 
       <div id="tela-liderancas" class="tela-liderancas" hidden></div>
 
+      <div id="tela-apuracao" class="tela-apuracao" hidden></div>
+
       <div id="grade-tabela" class="grade sem-destaques">
         <section class="painel painel-tabela">
           <div class="painel-cabecalho">
@@ -170,6 +176,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js" crossorigin=""></script>
   <script src="js/sync.js"></script>
   <script src="js/liderancas.js"></script>
+  <script src="js/apuracao.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

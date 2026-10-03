@@ -7,9 +7,9 @@
   const ORDEM_CARGOS = ['Presidente', 'Governador', 'Senador', 'Deputado Federal', 'Deputado Estadual', 'Prefeito', 'Vereador'];
   const ICONE_CARGO = { Presidente: 'i-flag', Governador: 'i-building', Senador: 'i-users', 'Deputado Federal': 'i-users', 'Deputado Estadual': 'i-users', Prefeito: 'i-building', Vereador: 'i-users' };
   const REPO_URL = 'https://github.com/wilkerpietro/eleicoes-ceara';
-  const TELAS = ['tabela', 'mapa', 'liderancas', 'estimativa', 'mapa26', 'candidatos26', 'usuarios'];
+  const TELAS = ['tabela', 'mapa', 'liderancas', 'estimativa', 'mapa26', 'candidatos26', 'usuarios', 'apuracao'];
   const TELAS_2026 = { liderancas: 'liderancas', estimativa: 'estimativa', mapa26: 'mapa26', candidatos26: 'candidatos', usuarios: 'usuarios' }; // tela do app -> tela do módulo
-  const NOME_TELA = { mapa: 'Mapa', liderancas: 'Lideranças', estimativa: 'Estimativa 2026', mapa26: 'Mapa estimativo 2026', candidatos26: 'Candidatos 2026', usuarios: 'Usuários' };
+  const NOME_TELA = { mapa: 'Mapa', liderancas: 'Lideranças', estimativa: 'Estimativa 2026', mapa26: 'Mapa estimativo 2026', candidatos26: 'Candidatos 2026', usuarios: 'Usuários', apuracao: 'Apuração paralela 2026' };
   const NOME_POR = { bairro: 'bairro', local: 'local de votação', secao: 'seção' };
   const NOME_POR_CAB = { bairro: 'Bairro', local: 'Local de votação', secao: 'Seção' };
   const TILES_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
@@ -48,6 +48,7 @@
     gradeTabela: $('#grade-tabela'),
     gradeMapa: $('#grade-mapa'),
     telaLiderancas: $('#tela-liderancas'),
+    telaApuracao: $('#tela-apuracao'),
     filtros: $('.filtros'),
     titulo: $('#titulo-tabela'),
     dica: $('#dica-tabela'),
@@ -382,7 +383,7 @@
     el.navEleicoes.innerHTML = manifesto.eleicoes.map((e) => {
       const ativa = e.id === estado.eleicao;
       const aberta = ativa && !menuRecolhido;
-      const destacada = ativa && !(estado.tela in TELAS_2026); // nas telas de 2026 o destaque vai para "Candidatos 2026"
+      const destacada = ativa && !(estado.tela in TELAS_2026) && estado.tela !== 'apuracao'; // nas telas de 2026 o destaque vai para "Candidatos 2026"
       let html = '<button type="button" class="nav-item nav-eleicao' + (destacada ? ' ativo' : '') + (aberta ? ' aberta' : '') + '" data-eleicao="' + esc(e.id) + '" aria-expanded="' + aberta + '" title="' + (ativa ? (aberta ? 'Recolher os cargos' : 'Mostrar os cargos') : 'Abrir esta eleição') + '">' +
         icone('i-vote') + '<span>' + esc(e.nome_curto || e.nome) + '</span>' + icone('i-right', 'seta') + '</button>';
       if (aberta) {
@@ -434,6 +435,7 @@
   }
 
   function renderTrilha() {
+    if (estado.tela === 'apuracao') { el.trilha.innerHTML = '<span class="crumb atual">' + esc(NOME_TELA.apuracao) + '</span>'; return; }
     const partes = [{ texto: db.cfg.nome, acao: 'inicio' }, { texto: nomeMun(), acao: 'inicio' }];
     if (estado.tela === 'mapa') partes.push({ texto: 'Mapa', acao: 'tela', valor: 'mapa' });
     if (estado.tela in TELAS_2026) {
@@ -976,12 +978,25 @@
     renderTrilha();
     const noMapa = estado.tela === 'mapa';
     const naLideranca = estado.tela in TELAS_2026;
-    el.gradeTabela.hidden = noMapa || naLideranca;
+    const naApuracao = estado.tela === 'apuracao';
+    el.gradeTabela.hidden = noMapa || naLideranca || naApuracao;
     el.gradeMapa.hidden = !noMapa;
     el.telaLiderancas.hidden = !naLideranca;
-    el.filtros.hidden = naLideranca;
-    el.resumo.hidden = naLideranca;
-    if (naLideranca) {
+    el.telaApuracao.hidden = !naApuracao;
+    el.filtros.hidden = naLideranca || naApuracao;
+    el.resumo.hidden = naLideranca || naApuracao;
+    el.fonte.hidden = naApuracao; // a fonte do rodapé é a da eleição carregada (TSE), não a da apuração
+    if (!naApuracao && window.Apuracao) Apuracao.ocultar();
+    if (naApuracao) {
+      document.title = NOME_TELA.apuracao + ' · Paraipaba e Paracuru';
+      if (window.Apuracao) {
+        Apuracao.mostrar({
+          el: el.telaApuracao, candidatos2026: manifesto.candidatos2026, fotos2026: manifesto.fotos2026,
+          irPara: (t) => { const app = Object.keys(TELAS_2026).find((k) => TELAS_2026[k] === t); if (app) executarAcao('tela', app); },
+        });
+      } else el.telaApuracao.innerHTML = '<section class="painel"><div class="vazio">Módulo de apuração não carregado.</div></section>';
+    }
+    else if (naLideranca) {
       if (window.Liderancas) {
         Liderancas.mostrar({
           el: el.telaLiderancas, tela: TELAS_2026[estado.tela], cdMun: estado.mun, nomeMun: nomeMun(), municipios: db.municipios,

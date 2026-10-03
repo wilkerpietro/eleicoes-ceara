@@ -1,0 +1,16 @@
+{
+  "_comentario": "Apuração paralela de 2026. 'municipios': código TSE e nome. 'secoes': pastas onde procurar a lista de seções e bairros de cada município (<pasta>/<cd>/secoes.csv), em ordem: vale a primeira que existir. A de 2026 é gerada por scripts/secoes-apuracao.sh a partir da lista do TRE-CE; sem ela, vale a de 2024, e seções novas podem ser incluídas na própria tela. 'candidatos': quem aparece no formulário e no placar, na ordem; 'chapa': true marca os nossos, false os adversários acompanhados. Os votos ficam gravados pelo número do candidato.",
+  "titulo": "Apuração paralela 2026",
+  "secoes": ["data/2026-1/", "data/2024-1/"],
+  "municipios": [
+    { "cd": "15997", "nome": "Paraipaba" },
+    { "cd": "15059", "nome": "Paracuru" }
+  ],
+  "candidatos": [
+    { "cargo": "Governador", "numero": "13", "nome": "Elmano", "chapa": true },
+    { "cargo": "Governador", "numero": "45", "nome": "Ciro", "chapa": false },
+    { "cargo": "Deputado Federal", "numero": "1515", "nome": "Yury do Paredão", "chapa": true },
+    { "cargo": "Deputado Estadual", "numero": "33000", "nome": "Carlos Júnior", "chapa": true },
+    { "cargo": "Deputado Estadual", "numero": "15333", "nome": "Daniel Oliveira", "chapa": true }
+  ]
+}
