@@ -44,6 +44,9 @@
   const normSecao = (s) => { const t = String(s == null ? '' : s).trim(); return /^\d{1,4}$/.test(t) ? String(parseInt(t, 10)) : ''; };
   const idDe = (cd, secao) => cd + '-' + secao;
   const nomeMun = (cd) => { const m = cfg.municipios.find((x) => x.cd === cd); return m ? m.nome : cd; };
+  /** Ano da lista de seções em uso no município (a pasta de onde ela veio: data/2026-1/ → 2026). */
+  const anoLista = (cd) => { const m = cfg.municipios.find((x) => x.cd === cd); return (m && m.fonte && (m.fonte.match(/(20\d\d)/) || [])[1]) || ''; };
+  const aptosTexto = (s) => (s.aptos ? fmtInt(s.aptos) + ' aptos' + (anoLista(s.cd) ? ' em ' + anoLista(s.cd) : '') : '');
 
   function avatar(nome, foto, tam) {
     const iniciais = String(nome || '').split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
@@ -71,7 +74,7 @@
     if (!cfg.municipios.length || !cfg.candidatos.length) throw new Error(ARQUIVO_CONFIG + ' sem municípios ou candidatos');
   }
 
-  /** Lista de seções de cada município: a primeira pasta de cfg.secoes que tiver o arquivo (ex.: 2026, senão 2024). */
+  /** Lista de seções de cada município: a primeira pasta de cfg.secoes que tiver o arquivo (2026; sem ele, 2024). */
   async function carregarSecoes() {
     const pastas = [].concat(cfg.secoes || 'data/2024-1/');
     await Promise.all(cfg.municipios.map(async (m) => {
@@ -347,8 +350,7 @@
         cols.map((c) => celulaCandidato(c, tb)).join('') + '</tr>';
       if (aberto) linhas += '<tr class="ap-linha-secoes"><td colspan="' + ncol + '">' + listaSecoes(b.secoes) + '</td></tr>';
     }
-    const m = cfg.municipios.find((y) => y.cd === x.cd);
-    const ano = m && m.fonte ? (m.fonte.match(/(20\d\d)/) || [])[1] : '';
+    const ano = anoLista(x.cd);
     const fonte = ano ? 'Lista de seções e bairros de ' + ano + ' (TRE-CE). ' : '';
     return '<section class="painel ap-mun"><div class="painel-cabecalho"><h2>' + esc(x.nome) + ' · por bairro</h2>' +
       '<span class="dica">' + t.apuradas + '/' + t.total + ' seções apuradas · ' + fmtInt(t.comparecimento) + ' votos apurados · clique no bairro para ver as seções</span></div>' +
@@ -386,7 +388,7 @@
           return '<span>' + esc(c.nome) + ' <b>' + fmtInt(v) + '</b>' + (val ? ' <small>' + fmtPct(pct(v, val)) + '</small>' : '') + '</span>';
         }).join('') + '</div>' : '';
       return '<div class="ap-secao ap-' + s.situacao + '"><div class="ap-secao-topo"><strong>Seção ' + esc(s.secao) + '</strong>' +
-        '<span class="dica">' + esc(titulo(s.local)) + (s.aptos ? ' · ' + fmtInt(s.aptos) + ' aptos em 2024' : '') + (s.extra ? ' · incluída na apuração' : '') + '</span>' + selo + quem +
+        '<span class="dica">' + esc(titulo(s.local)) + (s.aptos ? ' · ' + aptosTexto(s) : '') + (s.extra ? ' · incluída na apuração' : '') + '</span>' + selo + quem +
         '<span class="ap-secao-acoes">' + acoes + '</span></div>' + votos +
         (d && d.obs ? '<div class="dica ap-obs">Obs.: ' + esc(d.obs) + '</div>' : '') + '</div>';
     }).join('') + '</div>';
@@ -478,7 +480,7 @@
   const OUTRA = 'outra'; // opção do menu para seção fora da lista
 
   // nome do local no menu sem a sigla da escola ("EMEIF", "E. M. E. F.", "EEM"…): "Seção 196 - Centro - Francisco Figueiredo…"
-  const SIGLA_ESCOLA = /^(?:E\.?\s*M\.?\s*E\.?\s*I\.?\s*F|E\.?\s*M\.?\s*E\.?\s*F|E\.?\s*E\.?\s*M\.?\s*T\.?\s*I|E\.?\s*E\.?\s*E\.?\s*P|E\.?\s*E\.?\s*M)\.?\s+/i;
+  const SIGLA_ESCOLA = /^(?:E\.?\s*M\.?\s*E\.?\s*I\.?\s*F|E\.?\s*M\.?\s*E\.?\s*F|E\.?\s*M\.?\s*T\.?\s*I|E\.?\s*E\.?\s*M\.?\s*T\.?\s*I|E\.?\s*E\.?\s*E\.?\s*P|E\.?\s*E\.?\s*M|C\.?\s*E\.?\s*I)\.?\s+/i;
   const localCurto = (local) => titulo(String(local || '').replace(SIGLA_ESCOLA, '').trim());
 
   function rotuloSecao(s) {
@@ -541,7 +543,7 @@
     if (!secao) texto = modoOutra ? (form.elements.nova_secao.value.trim() ? 'Número de seção inválido.' : 'Digite o número da seção, como está no boletim.') : 'Escolha a seção do boletim.';
     else if (!s) { texto = 'A seção ' + secao + ' não está na lista de ' + nomeMun(cd) + '. Informe o bairro para incluí-la.'; classe = 'alerta'; }
     else {
-      texto = 'Seção ' + secao + ' · ' + titulo(s.bairro) + (s.local ? ' · ' + titulo(s.local) : '') + (s.aptos ? ' · ' + fmtInt(s.aptos) + ' aptos em 2024' : '');
+      texto = 'Seção ' + secao + ' · ' + titulo(s.bairro) + (s.local ? ' · ' + titulo(s.local) : '') + (s.aptos ? ' · ' + aptosTexto(s) : '');
       if (reg) { texto += '. Já lançada às ' + hora(reg.atualizado_em) + (reg.atualizado_por ? ' por ' + reg.atualizado_por : '') + ': salvar substitui os números.'; classe = 'alerta'; }
       else if (s.situacao === 'fora') { texto += '. Estava marcada como sem urna; ao salvar o boletim, volta à contagem.'; classe = 'alerta'; }
     }
@@ -635,7 +637,7 @@
       }
     }
     if (s && s.aptos && comp > s.aptos * 1.25 + 10 &&
-      !confirm('O comparecimento (' + fmtInt(comp) + ') passa bastante do eleitorado da seção em 2024 (' + fmtInt(s.aptos) + '). Confirma o número?')) {
+      !confirm('O comparecimento (' + fmtInt(comp) + ') passa bastante do eleitorado da seção (' + aptosTexto(s) + '). Confirma o número?')) {
       mostrarErroForm('Confira o comparecimento.', 'comparecimento');
       return null;
     }
