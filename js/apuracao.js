@@ -35,7 +35,7 @@
   const pct = (a, b) => (b > 0 ? (100 * a) / b : 0);
   const normalizar = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const titulo = (s) => String(s || '').toLowerCase()
-    .replace(/(^|[\s\-\/(])(\S)/g, (m, p, c) => p + c.toUpperCase())
+    .replace(/(^|[\s\-\/(])([^\s(])/g, (m, p, c) => p + c.toUpperCase())
     .replace(/ (De|Do|Da|Dos|Das|E) /g, (m) => m.toLowerCase());
   const num = (v) => { const n = parseInt(v, 10); return isFinite(n) && n > 0 ? n : 0; };
   const hora = (d) => new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -85,11 +85,25 @@
             secao: normSecao(s.secao), zona: s.zona || '', bairro: chaveBairro(s.bairro), local: s.local || '', aptos: parseInt(s.aptos, 10) || 0,
           })));
           m.fonte = pasta;
+          aplicarAjustes(m.cd);
           return;
         } catch (e) { /* tenta a próxima pasta */ }
       }
       base.set(m.cd, []);
     }));
+  }
+
+  /** Correções por cima da lista do TRE (cfg.ajustes_secoes): local e/ou bairro de seções específicas. */
+  function aplicarAjustes(cd) {
+    for (const aj of cfg.ajustes_secoes || []) {
+      if (String(aj.cd) !== cd) continue;
+      const alvo = new Set((aj.secoes || []).map(normSecao));
+      for (const s of base.get(cd) || []) {
+        if (!alvo.has(s.secao)) continue;
+        if (aj.local) s.local = aj.local;
+        if (aj.bairro) s.bairro = chaveBairro(aj.bairro);
+      }
+    }
   }
 
   async function carregarCadastro() {

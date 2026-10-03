@@ -1,5 +1,5 @@
 {
-  "_comentario": "Apuração paralela de 2026. 'municipios': código TSE e nome. 'secoes': pastas onde procurar a lista de seções e bairros de cada município (<pasta>/<cd>/secoes.csv), em ordem: vale a primeira que existir. A de 2026 é gerada por scripts/secoes-apuracao.sh a partir da lista do TRE-CE; sem ela, vale a de 2024, e seções novas podem ser incluídas na própria tela. 'candidatos': quem aparece no formulário e no placar, na ordem; 'chapa': true marca os nossos, false os adversários acompanhados. Os votos ficam gravados pelo número do candidato.",
+  "_comentario": "Apuração paralela de 2026. 'municipios': código TSE e nome. 'secoes': pastas onde procurar a lista de seções e bairros de cada município (<pasta>/<cd>/secoes.csv), em ordem: vale a primeira que existir. A de 2026 é gerada por scripts/secoes-apuracao.sh a partir da lista do TRE-CE; sem ela, vale a de 2024, e seções novas podem ser incluídas na própria tela. 'candidatos': quem aparece no formulário e no placar, na ordem; 'chapa': true marca os nossos, false os adversários acompanhados. Os votos ficam gravados pelo número do candidato. 'ajustes_secoes': correções feitas por cima da lista do TRE (local e/ou bairro de algumas seções), que continuam valendo se a lista for gerada de novo.",
   "titulo": "Apuração paralela 2026",
   "secoes": ["data/2026-1/", "data/2024-1/"],
   "municipios": [
@@ -12,5 +12,14 @@
     { "cargo": "Deputado Federal", "numero": "1515", "nome": "Yury do Paredão", "chapa": true },
     { "cargo": "Deputado Estadual", "numero": "33000", "nome": "Carlos Júnior", "chapa": true },
     { "cargo": "Deputado Estadual", "numero": "15333", "nome": "Daniel Oliveira", "chapa": true }
+  ],
+  "ajustes_secoes": [
+    {
+      "_motivo": "A EMEIF Altina Laranjeira (Centro) está em obras: as seções dela (122 a 130 em 2024) votam provisoriamente na EMTI Humberto Vieira Pessoa, em Boa Esperança. Os votos contam para o Centro. As seções 105 e 106, que já eram de Boa Esperança, ficam como estão.",
+      "cd": "15997",
+      "secoes": ["122", "123", "124", "125", "126", "127", "128", "129", "130"],
+      "local": "EMTI HUMBERTO VIEIRA PESSOA (ALTINA)",
+      "bairro": "CENTRO"
+    }
   ]
 }
