@@ -409,7 +409,7 @@
     raiz.innerHTML = ui.modal === 'login' ? htmlLogin() : htmlForm();
     document.body.classList.add('la-modal-aberto');
     if (ui.modal === 'form') { prepararForm(); }
-    const foco = raiz.querySelector(ui.modal === 'login' ? 'input[name="email"]' : 'input[name="secao"]');
+    const foco = raiz.querySelector(ui.modal === 'login' ? 'input[name="email"]' : 'select[name="secao"]');
     if (foco && !(ui.modal === 'form' && ui.form.secao)) foco.focus();
   }
 
@@ -453,14 +453,15 @@
         '<div class="ap-form-linha">' +
           '<div class="campo"><span class="rotulo">Município</span><div class="segmentado">' + cfg.municipios.map((m) =>
             '<label><input type="radio" name="cd" value="' + esc(m.cd) + '"' + (m.cd === f.cd ? ' checked' : '') + '><span>' + esc(m.nome) + '</span></label>').join('') + '</div></div>' +
-          '<label class="campo ap-campo-secao"><span class="rotulo">Número da seção</span><input name="secao" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" value="' + esc(f.secao || '') + '"></label>' +
+          '<label class="campo ap-campo-secao"><span class="rotulo">Seção</span><select name="secao"></select></label>' +
         '</div>' +
-        '<div class="ap-info-secao" aria-live="polite"></div>' +
         '<div class="ap-outra" hidden>' +
+          '<label class="campo"><span class="rotulo">Número da seção</span><input name="nova_secao" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" enterkeyhint="next"></label>' +
           '<label class="campo"><span class="rotulo">Bairro da seção nova</span><input name="nova_bairro" list="ap-lista-bairros" autocomplete="off"></label>' +
           '<label class="campo"><span class="rotulo">Local de votação (opcional)</span><input name="nova_local" autocomplete="off"></label>' +
           '<datalist id="ap-lista-bairros"></datalist>' +
         '</div>' +
+        '<div class="ap-info-secao" aria-live="polite"></div>' +
         '<label class="campo ap-campo-comp"><span class="rotulo">Comparecimento (eleitores que votaram)</span>' + inputNum('comparecimento') + '</label>' +
         cargosBU.map(blocoCargo).join('') +
         '<label class="campo"><span class="rotulo">Observação (opcional)</span><textarea name="obs" rows="2" maxlength="500"></textarea></label>' +
@@ -474,24 +475,53 @@
   }
 
   const campoForm = () => ctx.el.querySelector('form[data-ap="form"]');
+  const OUTRA = 'outra'; // opção do menu para seção fora da lista
+
+  // nome do local no menu sem a sigla da escola ("EMEIF", "E. M. E. F.", "EEM"…): "Seção 196 - Centro - Francisco Figueiredo…"
+  const SIGLA_ESCOLA = /^(?:E\.?\s*M\.?\s*E\.?\s*I\.?\s*F|E\.?\s*M\.?\s*E\.?\s*F|E\.?\s*E\.?\s*M\.?\s*T\.?\s*I|E\.?\s*E\.?\s*E\.?\s*P|E\.?\s*E\.?\s*M)\.?\s+/i;
+  const localCurto = (local) => titulo(String(local || '').replace(SIGLA_ESCOLA, '').trim());
+
+  function rotuloSecao(s) {
+    const marca = s.situacao === 'apurada' ? '  ✓ lançada' : s.situacao === 'fora' ? '  (sem urna)' : '';
+    return 'Seção ' + s.secao + ' - ' + titulo(s.bairro) + (s.local ? ' - ' + localCurto(s.local) : '') + marca;
+  }
+
+  function opcoesSecao(cd, escolhida) {
+    return '<option value="">Escolha a seção…</option>' +
+      secoesDe(cd).map((s) => '<option value="' + esc(s.secao) + '"' + (s.secao === escolhida ? ' selected' : '') + '>' + esc(rotuloSecao(s)) + '</option>').join('') +
+      '<option value="' + OUTRA + '"' + (escolhida === OUTRA ? ' selected' : '') + '>Outra seção (não está na lista)…</option>';
+  }
+
+  const secaoDoForm = (form) => (form.elements.secao.value === OUTRA ? normSecao(form.elements.nova_secao.value) : normSecao(form.elements.secao.value));
+  const campoSecao = (form) => (form.elements.secao.value === OUTRA ? 'nova_secao' : 'secao');
   const CAMPOS_NUM = () => ['comparecimento'].concat(cfg.candidatos.map((c) => 'v_' + c.numero), cfg.cargos.flatMap((cg) => ['b_' + chaveCargo(cg), 'n_' + chaveCargo(cg)]));
 
-  /** Ajusta o formulário à seção digitada: identifica o bairro, preenche um boletim já lançado, mostra a inclusão de seção nova. */
+  /** Ajusta o formulário à seção escolhida: identifica o bairro, preenche um boletim já lançado, mostra a inclusão de seção nova. */
   function prepararForm() {
     const form = campoForm();
     if (!form) return;
     const cd = form.elements.cd.value;
-    const secao = normSecao(form.elements.secao.value);
+    const menu = form.elements.secao;
+    // primeira vez ou troca de município: o menu passa a listar as seções dele
+    if (cd !== ui.form.cdMenu) {
+      menu.innerHTML = opcoesSecao(cd, menu.value === OUTRA ? OUTRA : (cd === ui.form.cd ? ui.form.secao : ''));
+      ui.form.cdMenu = cd;
+    }
+    const modoOutra = menu.value === OUTRA;
+    const secao = secaoDoForm(form);
     const info = form.querySelector('.ap-info-secao');
     const outra = form.querySelector('.ap-outra');
     const btnIncluir = form.querySelector('[data-ap="incluir-sem-bu"]');
     const btnApagar = form.querySelector('[data-ap="apagar-bu"]');
-    let s = secao ? procurarSecao(cd, secao) : null;
-    // o número é de uma seção do outro município: troca o município sozinho
-    if (secao && !s) {
-      const outroMun = cfg.municipios.find((m) => m.cd !== cd && procurarSecao(m.cd, secao));
-      if (outroMun) {
-        form.querySelector('input[name="cd"][value="' + outroMun.cd + '"]').checked = true;
+    const s = secao ? procurarSecao(cd, secao) : null;
+    // "outra seção" com um número que já está na lista (deste município ou do outro): escolhe no menu
+    if (modoOutra && secao) {
+      const destino = s ? cd : (cfg.municipios.find((m) => m.cd !== cd && procurarSecao(m.cd, secao)) || {}).cd;
+      if (destino) {
+        form.querySelector('input[name="cd"][value="' + destino + '"]').checked = true;
+        menu.innerHTML = opcoesSecao(destino, secao);
+        ui.form.cdMenu = destino;
+        form.elements.nova_secao.value = '';
         return prepararForm();
       }
     }
@@ -508,8 +538,8 @@
     }
     let texto = '';
     let classe = '';
-    if (!secao) texto = form.elements.secao.value.trim() ? 'Número de seção inválido.' : 'Digite o número da seção que está no boletim.';
-    else if (!s) { texto = 'A seção ' + secao + ' não está na lista de ' + nomeMun(cd) + '. Se for uma seção nova, informe o bairro abaixo.'; classe = 'alerta'; }
+    if (!secao) texto = modoOutra ? (form.elements.nova_secao.value.trim() ? 'Número de seção inválido.' : 'Digite o número da seção, como está no boletim.') : 'Escolha a seção do boletim.';
+    else if (!s) { texto = 'A seção ' + secao + ' não está na lista de ' + nomeMun(cd) + '. Informe o bairro para incluí-la.'; classe = 'alerta'; }
     else {
       texto = 'Seção ' + secao + ' · ' + titulo(s.bairro) + (s.local ? ' · ' + titulo(s.local) : '') + (s.aptos ? ' · ' + fmtInt(s.aptos) + ' aptos em 2024' : '');
       if (reg) { texto += '. Já lançada às ' + hora(reg.atualizado_em) + (reg.atualizado_por ? ' por ' + reg.atualizado_por : '') + ': salvar substitui os números.'; classe = 'alerta'; }
@@ -517,8 +547,8 @@
     }
     info.textContent = texto;
     info.className = 'ap-info-secao ' + classe;
-    outra.hidden = !(secao && !s);
-    btnIncluir.hidden = !(secao && !s);
+    outra.hidden = !modoOutra;
+    btnIncluir.hidden = !(modoOutra && secao && !s);
     btnApagar.hidden = !reg;
     if (!outra.hidden) {
       const nomes = Array.from(new Set(secoesDe(cd).map((x) => titulo(x.bairro)))).sort((a, b) => a.localeCompare(b, 'pt-BR'));
@@ -574,8 +604,8 @@
   /** Lê e confere o formulário. Devolve o registro pronto para gravar, ou null (com o erro já mostrado). */
   function lerBoletim(form) {
     const cd = form.elements.cd.value;
-    const secao = normSecao(form.elements.secao.value);
-    if (!secao) { mostrarErroForm('Informe o número da seção.', 'secao'); return null; }
+    const secao = secaoDoForm(form);
+    if (!secao) { mostrarErroForm(campoSecao(form) === 'secao' ? 'Escolha a seção do boletim.' : 'Informe o número da seção.', campoSecao(form)); return null; }
     const s = procurarSecao(cd, secao);
     const bairroNovo = String(form.elements.nova_bairro.value || '').trim();
     if (!s && !bairroNovo) { mostrarErroForm('A seção ' + secao + ' não está na lista: informe o bairro dela.', 'nova_bairro'); return null; }
@@ -669,7 +699,7 @@
       const cd = alvo.dataset.cd || (ui.vista !== 'todos' ? ui.vista : cfg.municipios[0].cd);
       ui.modal = 'form';
       ui.erro = '';
-      ui.form = { cd, secao: alvo.dataset.secao || '', preenchidoCom: null };
+      ui.form = { cd, secao: alvo.dataset.secao || '', cdMenu: null, preenchidoCom: null };
       renderModal();
       if (ui.form.secao) { const c = campoForm().elements.comparecimento; if (c) c.focus(); }
       return;
@@ -692,9 +722,9 @@
     if (acao === 'incluir-sem-bu') {
       const form = campoForm();
       const cdF = form.elements.cd.value;
-      const sec = normSecao(form.elements.secao.value);
+      const sec = secaoDoForm(form);
       const bairro = String(form.elements.nova_bairro.value || '').trim();
-      if (!sec) { mostrarErroForm('Informe o número da seção.', 'secao'); return; }
+      if (!sec) { mostrarErroForm('Informe o número da seção.', 'nova_secao'); return; }
       if (!bairro) { mostrarErroForm('Informe o bairro da seção nova.', 'nova_bairro'); return; }
       const reg = { id: idDe(cdF, sec), cd_mun: cdF, secao: sec, dados: { situacao: 'pendente', zona: ((base.get(cdF) || [])[0] || {}).zona || '', bairro: chaveBairro(bairro), local: String(form.elements.nova_local.value || '').trim() } };
       gravar(reg).then(() => { ui.aviso = 'Seção ' + sec + ' incluída em ' + nomeMun(cdF) + ' (' + titulo(bairro) + '), aguardando boletim.'; fecharModal(); renderCorpo(); })
@@ -704,7 +734,7 @@
     if (acao === 'apagar-bu') {
       const form = campoForm();
       const cdF = form.elements.cd.value;
-      const sec = normSecao(form.elements.secao.value);
+      const sec = secaoDoForm(form);
       const s = procurarSecao(cdF, sec);
       if (!s || !s.reg || !confirm('Apagar o boletim da seção ' + sec + ' (' + nomeMun(cdF) + ')? Os números dela saem da apuração.')) return;
       // seção incluída na tela continua na lista, aguardando boletim; seção da lista volta a "aguardando"
@@ -722,13 +752,14 @@
     const form = ev.target.closest('form[data-ap="form"]');
     if (!form) return;
     if (ui.erro) mostrarErroForm('');
-    if (ev.target.name === 'secao') { clearTimeout(esperaSecao); esperaSecao = setTimeout(prepararForm, 400); }
+    if (ev.target.name === 'nova_secao') { clearTimeout(esperaSecao); esperaSecao = setTimeout(prepararForm, 400); }
     else if (ev.target.inputMode === 'numeric') conferir();
   }
 
   function aoMudar(ev) {
     if (!ev.target.closest('form[data-ap="form"]')) return;
-    if (ev.target.name === 'cd' || ev.target.name === 'secao') { clearTimeout(esperaSecao); prepararForm(); }
+    if (ev.target.name === 'cd' || ev.target.name === 'secao' || ev.target.name === 'nova_secao') { clearTimeout(esperaSecao); prepararForm(); }
+    if (ev.target.name === 'secao' && ev.target.value === OUTRA) ev.target.form.elements.nova_secao.focus();
   }
 
   function aoSubmeter(ev) {
@@ -760,7 +791,7 @@
     if (ev.key === 'Enter' && ui.modal === 'form' && ev.target.matches('form[data-ap="form"] input:not([type="radio"])')) {
       ev.preventDefault();
       const form = campoForm();
-      if (ev.target.name === 'secao') { clearTimeout(esperaSecao); prepararForm(); }
+      if (ev.target.name === 'nova_secao') { clearTimeout(esperaSecao); prepararForm(); }
       const campos = Array.from(form.querySelectorAll('input:not([type="radio"])')).filter((c) => !c.closest('[hidden]'));
       const i = campos.indexOf(ev.target);
       if (i >= 0 && i < campos.length - 1) campos[i + 1].focus();
