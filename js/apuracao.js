@@ -14,18 +14,26 @@
   const ORDEM_BU = ['Deputado Federal', 'Deputado Estadual', 'Senador', 'Governador', 'Presidente']; // ordem dos cargos no boletim
   const CHAVE_CARGO = { Presidente: 'presidente', Governador: 'governador', Senador: 'senador', 'Deputado Federal': 'federal', 'Deputado Estadual': 'estadual' };
   const CARGO_CURTO = { 'Deputado Federal': 'Dep. federal', 'Deputado Estadual': 'Dep. estadual' };
+  // cargos com lista aberta: além dos candidatos do data/apuracao.json, entram os apoiados pelas lideranças dos
+  // municípios; no placar aparecem os 3 mais votados (e os da chapa), com "ver mais" para os demais
+  const CARGOS_ABERTOS = ['Deputado Federal', 'Deputado Estadual'];
+  const CHAVE_APOIO = { 'Deputado Federal': 'federal', 'Deputado Estadual': 'estadual' };
+  const TOP = 3;
 
   let cfg = null;              // data/apuracao.json (+ cfg.cargos na ordem do placar)
   let ctx = null;              // { el, candidatos2026, fotos2026, irPara }
   const base = new Map();      // cd -> [{ secao, zona, bairro, local, aptos }] (lista de seções do arquivo)
   let regs = new Map();        // id -> { id, cd_mun, secao, dados, atualizado_em, atualizado_por }
-  const cadastro = new Map();  // cargo|numero -> { partido, foto } (candidatos 2026 do TSE)
+  const cadastro = new Map();  // cargo|numero -> { sq, cargo, numero, nome, partido, foto } (candidatos 2026 do TSE)
+  const cadastroSq = new Map(); // sq -> o mesmo registro (as lideranças guardam o candidato como "tse:<sq>")
+  let apoiados = [];           // deputados apoiados por lideranças dos municípios: [{ cargo, numero, nome, chapa: false }]
+  let cargaApoiados = null;    // promessa da leitura das lideranças (só para quem lança)
   let perfilAtual = null;
   let carga = null;            // promessa da carga inicial (config, seções, cadastro, perfil)
   let assinatura = null;       // muda quando algum boletim muda (evita redesenhar à toa)
   let ultimaLeitura = null;
   let timer = null;
-  const ui = { vista: 'todos', abertos: new Set(), modal: null, form: null, erro: '', erroLogin: '', aviso: '', erroCarga: '', erroLeitura: '', semTabela: false };
+  const ui = { vista: 'todos', abertos: new Set(), cargosAbertos: new Set(), erroApoiados: '', modal: null, form: null, erro: '', erroLogin: '', aviso: '', erroCarga: '', erroLeitura: '', semTabela: false };
 
   // ---------- utilidades ----------
   const MAPA_ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -110,7 +118,9 @@
     try {
       const linhas = await global.Csv.carregarCsv(ctx.candidatos2026 || 'data/2026-1/candidatos.csv');
       for (const c of linhas) {
-        cadastro.set(c.cargo + '|' + c.numero, { partido: c.partido || '', foto: c.foto ? (ctx.fotos2026 || 'data/2026-1/fotos/') + c.foto : '' });
+        const reg = { sq: c.sq, cargo: c.cargo, numero: c.numero, nome: titulo(c.nome_urna || c.nome), partido: c.partido || '', foto: c.foto ? (ctx.fotos2026 || 'data/2026-1/fotos/') + c.foto : '' };
+        cadastro.set(c.cargo + '|' + c.numero, reg);
+        if (c.sq) cadastroSq.set(c.sq, reg);
       }
     } catch (e) { console.warn('Cadastro de candidatos 2026 indisponível:', e); }
   }
@@ -133,6 +143,7 @@
         if (id === ultimo) return; // o Supabase repete o evento de sessão; só age quando o usuário muda
         ultimo = id;
         perfilAtual = u ? await global.Sync.perfil() : null;
+        cargaApoiados = null; apoiados = []; ui.erroApoiados = '';
         if (ctx && !ctx.el.hidden) { renderCorpo(); if (ui.modal === 'form' && !podeLancar()) fecharModal(); }
       });
     }
@@ -160,6 +171,84 @@
     const mudou = ass !== assinatura;
     assinatura = ass;
     return mudou;
+  }
+
+  /**
+   * Deputados federais e estaduais apoiados por lideranças de algum dos municípios da apuração (tela Estimativa).
+   * As lideranças só podem ser lidas por usuário aprovado, então isto só roda para quem lança boletins; quem
+   * só olha a apuração conhece esses candidatos pelos boletins gravados (que guardam todos, com 0 quando vazio).
+   */
+  function garantirApoiados() {
+    if (!podeLancar()) return Promise.resolve(apoiados);
+    if (!cargaApoiados) {
+      cargaApoiados = (async () => {
+        const cds = cfg.municipios.map((m) => m.cd);
+        let lids = [];
+        let manuais = [];
+        if (nuvem()) {
+          lids = (await Promise.all(cds.map((cd) => global.Sync.carregarLiderancas(cd)))).flat();
+          manuais = await global.Sync.carregarCandidatos().catch(() => []);
+        } else {
+          try {
+            const salvo = JSON.parse(localStorage.getItem('eleicoes-ce-liderancas-v1') || '{}');
+            lids = (salvo.liderancas || []).filter((l) => cds.includes(l.cd_mun));
+            manuais = salvo.candidatos2026 || [];
+          } catch (e) { /* sem lideranças no navegador */ }
+        }
+        const achados = new Map();
+        for (const l of lids) {
+          for (const cargo of CARGOS_ABERTOS) {
+            const bruto = l.apoio2026 && l.apoio2026[CHAVE_APOIO[cargo]];
+            for (const a of (Array.isArray(bruto) ? bruto : bruto ? [bruto] : [])) {
+              if (!a || !a.candidato_id) continue;
+              const id = String(a.candidato_id);
+              let c = id.startsWith('tse:') ? cadastroSq.get(id.slice(4)) : null;
+              if (!c) {
+                // candidato cadastrado à mão: só entra se tiver número (os votos são gravados pelo número)
+                const m = manuais.find((x) => x.id === id);
+                if (m && /^\d{4,5}$/.test(String(m.numero || ''))) c = { cargo: m.cargo, numero: String(m.numero), nome: titulo(m.nome), manual: true };
+              }
+              if (!c || c.cargo !== cargo || achados.has(c.numero)) continue;
+              achados.set(c.numero, { cargo: c.cargo, numero: c.numero, nome: c.nome, chapa: false, manual: !!c.manual });
+            }
+          }
+        }
+        apoiados = Array.from(achados.values());
+        ui.erroApoiados = '';
+        return apoiados;
+      })().catch((e) => {
+        cargaApoiados = null;
+        ui.erroApoiados = e.message;
+        return apoiados;
+      });
+    }
+    return cargaApoiados;
+  }
+
+  /** Cargo de um número que apareceu num boletim: pelo cadastro do TSE; sem cadastro, pelo tamanho (4 = federal, 5 = estadual). */
+  function cargoDoNumero(n) {
+    for (const cargo of CARGOS_ABERTOS) if (cadastro.has(cargo + '|' + n)) return cargo;
+    return n.length === 4 ? 'Deputado Federal' : n.length === 5 ? 'Deputado Estadual' : '';
+  }
+
+  /**
+   * Candidatos de um cargo: os do data/apuracao.json, os apoiados pelas lideranças e, nos cargos de lista aberta,
+   * qualquer outro número gravado nos boletins (com o nome do cadastro do TSE ou o que veio no boletim).
+   */
+  function candidatosDoCargo(cargo) {
+    const lista = new Map();
+    for (const c of cfg.candidatos) if (c.cargo === cargo) lista.set(c.numero, c);
+    if (!CARGOS_ABERTOS.includes(cargo)) return Array.from(lista.values());
+    for (const c of apoiados) if (c.cargo === cargo && !lista.has(c.numero)) lista.set(c.numero, c);
+    for (const r of regs.values()) {
+      const d = r.dados || {};
+      for (const n of Object.keys(d.votos || {})) {
+        if (lista.has(n) || !/^\d{4,5}$/.test(n) || cargoDoNumero(n) !== cargo) continue;
+        const cad = cadastro.get(cargo + '|' + n);
+        lista.set(n, { cargo, numero: n, nome: cad ? cad.nome : ((d.nomes && d.nomes[n]) || 'Candidato ' + n), chapa: false });
+      }
+    }
+    return Array.from(lista.values());
   }
 
   function tratarErroLeitura(e) {
@@ -223,7 +312,7 @@
       const d = s.reg.dados;
       t.comparecimento += num(d.comparecimento);
       for (const cargo of cfg.cargos) { const k = chaveCargo(cargo); t.validos[k] = (t.validos[k] || 0) + validos(d, k); }
-      for (const c of cfg.candidatos) t.votos[c.numero] = (t.votos[c.numero] || 0) + num(d.votos && d.votos[c.numero]);
+      for (const [n, v] of Object.entries(d.votos || {})) t.votos[n] = (t.votos[n] || 0) + num(v);
     }
     return t;
   }
@@ -322,18 +411,47 @@
           '<span class="ap-progresso" role="progressbar" aria-valuemin="0" aria-valuemax="' + t.total + '" aria-valuenow="' + t.apuradas + '"><span style="width:' + pctSec.toFixed(1) + '%"></span></span>' +
           '<span class="dica">' + fmtPct(pctSec) + (detalheMun ? ' · ' + detalheMun : '') + '</span></div>' +
       '</div>' +
-      '<div class="ap-cands">' + cfg.candidatos.map((c) => cartaoCandidato(c, t)).join('') + '</div></section>';
+      '<div class="ap-cargos">' + cfg.cargos.map((cargo) => listaCargo(cargo, t)).join('') + '</div></section>';
   }
 
-  function cartaoCandidato(c, t) {
-    const v = t.votos[c.numero] || 0;
-    const val = t.validos[chaveCargo(c.cargo)] || 0;
+  /**
+   * Lista de um cargo no placar, do mais votado para o menos votado. Nos cargos de lista aberta (deputados) aparecem
+   * os 3 primeiros e os da nossa chapa que estiverem abaixo deles; "Ver mais" mostra todos.
+   */
+  function listaCargo(cargo, t) {
+    const k = chaveCargo(cargo);
+    const val = t.validos[k] || 0;
+    const ordemCfg = (c) => { const i = cfg.candidatos.indexOf(c); return i < 0 ? 999 : i; };
+    const cands = candidatosDoCargo(cargo).map((c) => ({ c, v: t.votos[c.numero] || 0 }))
+      .sort((a, b) => b.v - a.v || (b.c.chapa ? 1 : 0) - (a.c.chapa ? 1 : 0) || ordemCfg(a.c) - ordemCfg(b.c) || a.c.nome.localeCompare(b.c.nome, 'pt-BR'));
+    const aberta = ui.cargosAbertos.has(k);
+    const limitada = CARGOS_ABERTOS.includes(cargo) && cands.length > TOP;
+    const lider = liderDe(t, cargo);
+    let html = '';
+    let pulou = false;
+    cands.forEach((x, i) => {
+      const visivel = !limitada || aberta || i < TOP || x.c.chapa;
+      if (!visivel) { pulou = true; return; }
+      if (pulou) { html += '<div class="ap-reticencias" aria-hidden="true">⋯</div>'; pulou = false; }
+      html += linhaCandidato(x.c, x.v, val, CARGOS_ABERTOS.includes(cargo) && x.v > 0 ? i + 1 : 0, lider === x.c.numero);
+    });
+    const escondidos = limitada && !aberta ? cands.filter((x, i) => !(i < TOP || x.c.chapa)).length : 0;
+    const botao = limitada && (aberta || escondidos)
+      ? '<button type="button" class="btn btn-mini ap-ver-mais" data-ap="ver-mais" data-cargo="' + esc(k) + '" aria-expanded="' + aberta + '">' +
+        (aberta ? 'Ver menos' : 'Ver mais (' + escondidos + ')') + '</button>'
+      : '';
+    return '<section class="ap-cargo-bloco"><div class="ap-cargo-titulo"><h3>' + esc(cargo) + '</h3>' +
+      (t.apuradas ? '<span class="dica">' + fmtInt(val) + ' votos válidos</span>' : '') + '</div>' +
+      '<div class="ap-cargo-lista">' + (html || '<div class="vazio">Nenhum candidato.</div>') + '</div>' + botao + '</section>';
+  }
+
+  function linhaCandidato(c, v, val, posicao, lider) {
     const p = pct(v, val);
     const cad = cadastroDe(c);
-    const lider = liderDe(t, c.cargo) === c.numero;
-    return '<div class="ap-cand ' + (c.chapa ? 'chapa' : 'adversario') + '">' + avatar(c.nome, cad.foto, 46) +
+    return '<div class="ap-cand ' + (c.chapa ? 'chapa' : cfg.candidatos.includes(c) ? 'adversario' : 'outro') + '">' +
+      '<span class="ap-foto">' + avatar(c.nome, cad.foto, 40) + (posicao ? '<span class="ap-pos">' + posicao + 'º</span>' : '') + '</span>' +
       '<div class="ap-cand-info"><strong>' + esc(c.nome) + (lider ? '<span class="selo ' + (c.chapa ? 'eleito' : 'ap-selo-adv') + '">à frente</span>' : '') + '</strong>' +
-        '<span class="dica">' + esc(c.cargo) + ' · ' + esc(c.numero) + (cad.partido ? ' · ' + esc(cad.partido) : '') + '</span></div>' +
+        '<span class="dica">' + esc(c.numero) + (cad.partido ? ' · ' + esc(cad.partido) : '') + (c.chapa ? ' · nossa chapa' : '') + '</span></div>' +
       '<div class="ap-cand-num"><strong>' + (val ? fmtPct(p) : '—') + '</strong><span>' + fmtInt(v) + ' votos</span></div>' +
       '<span class="ap-barra"><span style="width:' + p.toFixed(1) + '%"></span></span></div>';
   }
@@ -448,19 +566,33 @@
       '</form></div></div>';
   }
 
-  const inputNum = (nome) => '<input name="' + nome + '" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" autocomplete="off" enterkeyhint="next">';
+  const inputNum = (nome, opcional) => '<input name="' + nome + '" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="5" autocomplete="off" enterkeyhint="next"' +
+    (opcional ? ' placeholder="0" data-opcional="1"' : '') + '>';
 
   function htmlForm() {
     const f = ui.form;
     const cargosBU = cfg.cargos.slice().sort((a, b) => (ORDEM_BU.indexOf(a) + 1 || 99) - (ORDEM_BU.indexOf(b) + 1 || 99));
+    // candidatos de cada cargo no formulário: os do data/apuracao.json (obrigatórios) e, nos deputados, os apoiados
+    // pelas lideranças e os que já aparecem em boletins (opcionais, em ordem de número, como os partidos no boletim)
+    f.cands = {};
+    for (const cargo of cfg.cargos) {
+      const fixos = cfg.candidatos.filter((c) => c.cargo === cargo);
+      const outros = candidatosDoCargo(cargo).filter((c) => !fixos.includes(c)).sort((a, b) => parseInt(a.numero, 10) - parseInt(b.numero, 10));
+      f.cands[cargo] = fixos.concat(outros);
+    }
+    const linhaVoto = (c, opcional) => '<label class="ap-voto"><span class="cand-linha">' + avatar(c.nome, cadastroDe(c).foto, 30) +
+      '<span><strong>' + esc(c.nome) + '</strong> <small class="dica">' + esc(c.numero) + (cadastroDe(c).partido ? ' · ' + esc(cadastroDe(c).partido) : '') + '</small></span></span>' +
+      inputNum('v_' + c.numero, opcional) + '</label>';
     const blocoCargo = (cargo) => {
       const k = chaveCargo(cargo);
+      const opcionais = f.cands[cargo].filter((c) => !cfg.candidatos.includes(c));
       return '<fieldset class="ap-cargo" data-cargo="' + k + '"><legend>' + esc(cargo) + '</legend><div class="ap-votos">' +
-        cfg.candidatos.filter((c) => c.cargo === cargo).map((c) =>
-          '<label class="ap-voto"><span class="cand-linha">' + avatar(c.nome, cadastroDe(c).foto, 30) + '<span><strong>' + esc(c.nome) + '</strong> <small class="dica">' + esc(c.numero) + '</small></span></span>' + inputNum('v_' + c.numero) + '</label>').join('') +
+        f.cands[cargo].filter((c) => cfg.candidatos.includes(c)).map((c) => linhaVoto(c, false)).join('') +
         '<label class="ap-voto ap-voto-bn"><span>Brancos</span>' + inputNum('b_' + k) + '</label>' +
-        '<label class="ap-voto ap-voto-bn"><span>Nulos</span>' + inputNum('n_' + k) + '</label>' +
-        '</div><div class="ap-conferencia dica" data-conf="' + k + '"></div></fieldset>';
+        '<label class="ap-voto ap-voto-bn"><span>Nulos</span>' + inputNum('n_' + k) + '</label></div>' +
+        (opcionais.length ? '<div class="ap-opcionais"><div class="ap-opcionais-titulo">Outros candidatos com lideranças <span class="dica">· opcional: em branco conta como 0</span></div>' +
+          '<div class="ap-votos">' + opcionais.map((c) => linhaVoto(c, true)).join('') + '</div></div>' : '') +
+        '<div class="ap-conferencia dica" data-conf="' + k + '"></div></fieldset>';
     };
     return '<div class="la-modal-fundo" data-ap="fundo"><div class="la-modal ap-modal" role="dialog" aria-modal="true" aria-labelledby="ap-form-titulo">' +
       '<button type="button" class="la-modal-fechar" data-ap="fechar" aria-label="Fechar">×</button>' +
@@ -479,6 +611,7 @@
         '</div>' +
         '<div class="ap-info-secao" aria-live="polite"></div>' +
         '<label class="campo ap-campo-comp"><span class="rotulo">Comparecimento (eleitores que votaram)</span>' + inputNum('comparecimento') + '</label>' +
+        (ui.erroApoiados ? '<p class="ap-info-secao alerta">Não foi possível carregar os candidatos das lideranças (' + esc(ui.erroApoiados) + '). Aparecem só os da chapa e os que já estão nos boletins.</p>' : '') +
         cargosBU.map(blocoCargo).join('') +
         '<label class="campo"><span class="rotulo">Observação (opcional)</span><textarea name="obs" rows="2" maxlength="500"></textarea></label>' +
         '<div class="erro ap-erro" role="alert"' + (ui.erro ? '' : ' hidden') + '>' + esc(ui.erro) + '</div>' +
@@ -573,9 +706,15 @@
     conferir();
   }
 
+  // todos os candidatos que estão no formulário aberto: [{ c, cargo, opcional }]
+  const candsForm = () => Object.entries(ui.form.cands || {}).flatMap(([cargo, lista]) => lista.map((c) => ({ c, cargo, opcional: !cfg.candidatos.includes(c) })));
+
   function preencher(form, d) {
     form.elements.comparecimento.value = d ? num(d.comparecimento) : '';
-    for (const c of cfg.candidatos) form.elements['v_' + c.numero].value = d ? num(d.votos && d.votos[c.numero]) : '';
+    for (const { c, opcional } of candsForm()) {
+      const v = d ? num(d.votos && d.votos[c.numero]) : 0;
+      form.elements['v_' + c.numero].value = d && (v || !opcional) ? v : '';
+    }
     for (const cg of cfg.cargos) {
       const k = chaveCargo(cg);
       form.elements['b_' + k].value = d ? num(d.brancos && d.brancos[k]) : '';
@@ -595,7 +734,7 @@
       const k = chaveCargo(cg);
       const alvo = form.querySelector('[data-conf="' + k + '"]');
       if (!alvo) continue;
-      const nossos = cfg.candidatos.filter((c) => c.cargo === cg).reduce((s, c) => s + (lerInt(form, 'v_' + c.numero) || 0), 0);
+      const nossos = (ui.form.cands[cg] || []).reduce((s, c) => s + (lerInt(form, 'v_' + c.numero) || 0), 0);
       const bn = (lerInt(form, 'b_' + k) || 0) + (lerInt(form, 'n_' + k) || 0);
       if (comp == null) { alvo.textContent = ''; alvo.classList.remove('excedeu'); continue; }
       const val = comp - bn;
@@ -638,15 +777,26 @@
       comparecimento: comp, votos: {}, brancos: {}, nulos: {},
       obs: String(form.elements.obs.value || '').trim(),
     };
-    for (const c of cfg.candidatos) dados.votos[c.numero] = lerInt(form, 'v_' + c.numero);
+    // número de candidato que estava no boletim mas não aparece no formulário: mantém
+    const anterior = (s && s.reg && s.reg.dados && s.reg.dados.votos) || {};
+    for (const n of Object.keys(anterior)) dados.votos[n] = num(anterior[n]);
+    for (const { c, opcional } of candsForm()) {
+      const texto = String(form.elements['v_' + c.numero].value || '').trim();
+      // candidato cadastrado à mão não está no cadastro do TSE: o nome vai junto, para quem só olha a apuração
+      if (c.manual) { dados.nomes = dados.nomes || {}; dados.nomes[c.numero] = c.nome; }
+      // os opcionais em branco valem 0 e ficam gravados assim: quem só olha a apuração também passa a ver o candidato
+      if (opcional && !texto) { dados.votos[c.numero] = 0; continue; }
+      if (!/^\d+$/.test(texto)) { mostrarErroForm('Número inválido em ' + c.nome + '.', 'v_' + c.numero); return null; }
+      dados.votos[c.numero] = parseInt(texto, 10);
+    }
     for (const cg of cfg.cargos) {
       const k = chaveCargo(cg);
       dados.brancos[k] = lerInt(form, 'b_' + k);
       dados.nulos[k] = lerInt(form, 'n_' + k);
-      const cands = cfg.candidatos.filter((c) => c.cargo === cg);
-      const soma = cands.reduce((t, c) => t + dados.votos[c.numero], 0) + dados.brancos[k] + dados.nulos[k];
+      const cands = ui.form.cands[cg] || [];
+      const soma = cands.reduce((t, c) => t + num(dados.votos[c.numero]), 0) + dados.brancos[k] + dados.nulos[k];
       if (soma > comp) {
-        mostrarErroForm(cg + ': ' + cands.map((c) => c.nome).join(' + ') + ' + brancos + nulos dá ' + fmtInt(soma) + ', mais que o comparecimento (' + fmtInt(comp) + '). Confira os números.', 'v_' + cands[0].numero);
+        mostrarErroForm(cg + ': candidatos + brancos + nulos dá ' + fmtInt(soma) + ', mais que o comparecimento (' + fmtInt(comp) + '). Confira os números.', cands.length ? 'v_' + cands[0].numero : 'b_' + k);
         return null;
       }
     }
@@ -702,6 +852,12 @@
       renderCorpo();
       return;
     }
+    if (acao === 'ver-mais') {
+      const k = alvo.dataset.cargo;
+      if (ui.cargosAbertos.has(k)) ui.cargosAbertos.delete(k); else ui.cargosAbertos.add(k);
+      renderCorpo();
+      return;
+    }
     if (acao === 'atualizar') { atualizar(true); return; }
     if (acao === 'fechar-aviso') { ui.aviso = ''; renderCorpo(); return; }
     if (acao === 'entrar') { ui.modal = 'login'; ui.erroLogin = ''; renderModal(); return; }
@@ -713,11 +869,16 @@
     if (acao === 'lancar') {
       if (!podeLancar()) { ui.modal = 'login'; renderModal(); return; }
       const cd = alvo.dataset.cd || (ui.vista !== 'todos' ? ui.vista : cfg.municipios[0].cd);
-      ui.modal = 'form';
-      ui.erro = '';
-      ui.form = { cd, secao: alvo.dataset.secao || '', cdMenu: null, preenchidoCom: null };
-      renderModal();
-      if (ui.form.secao) { const c = campoForm().elements.comparecimento; if (c) c.focus(); }
+      const secao = alvo.dataset.secao || '';
+      // o formulário lista os deputados das lideranças: espera a leitura delas (normalmente já feita ao abrir a tela)
+      garantirApoiados().then(() => {
+        if (ui.modal) return;
+        ui.modal = 'form';
+        ui.erro = '';
+        ui.form = { cd, secao, cdMenu: null, preenchidoCom: null };
+        renderModal();
+        if (ui.form.secao) { const c = campoForm().elements.comparecimento; if (c) c.focus(); }
+      });
       return;
     }
     if (!podeLancar()) return;
@@ -795,6 +956,7 @@
           ui.erroLogin = '';
           if (!podeLancar()) ui.aviso = 'Sua conta ainda não foi autorizada pelo administrador para lançar boletins.';
           render();
+          if (podeLancar()) garantirApoiados().then(() => renderCorpo());
         })
         .catch((e) => {
           // mostra o erro sem redesenhar o formulário (o e-mail e a senha digitados continuam lá)
@@ -879,6 +1041,7 @@
       return;
     }
     await atualizar(true);
+    if (podeLancar() && !cargaApoiados) garantirApoiados().then(() => renderCorpo());
     // o app redesenha a tela a cada navegação: o popup aberto (com o que já foi digitado) fica como está
     const raiz = ctx.el.querySelector('.ap-modal-raiz');
     if (ui.modal && raiz && !raiz.innerHTML) renderModal();
