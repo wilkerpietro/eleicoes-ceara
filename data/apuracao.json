@@ -1,17 +1,17 @@
 {
-  "_comentario": "Apuração paralela de 2026. 'municipios': código TSE e nome. 'secoes': pastas onde procurar a lista de seções e bairros de cada município (<pasta>/<cd>/secoes.csv), em ordem: vale a primeira que existir. A de 2026 é gerada por scripts/secoes-apuracao.sh a partir da lista do TRE-CE; sem ela, vale a de 2024, e seções novas podem ser incluídas na própria tela. 'candidatos': quem aparece no formulário e no placar, na ordem; 'chapa': true marca os nossos, false os adversários acompanhados. Os votos ficam gravados pelo número do candidato. 'ajustes_secoes': correções feitas por cima da lista do TRE (local e/ou bairro de algumas seções), que continuam valendo se a lista for gerada de novo.",
+  "_comentario": "Apuração paralela de 2026. 'municipios': código TSE e nome. 'secoes': pastas onde procurar a lista de seções e bairros de cada município (<pasta>/<cd>/secoes.csv), em ordem: vale a primeira que existir. A de 2026 é gerada por scripts/secoes-apuracao.sh a partir da lista do TRE-CE; sem ela, vale a de 2024, e seções novas podem ser incluídas na própria tela. 'candidatos': quem aparece no formulário e no placar, na ordem; 'chapa': true marca os nossos, false os adversários acompanhados. Os votos ficam gravados pelo número do candidato. 'ajustes_secoes': correções feitas por cima da lista do TRE (local e/ou bairro de algumas seções), que continuam valendo se a lista for gerada de novo. 'responsaveis': quem manda os boletins de cada área, para o controle de envio (só a equipe vê); cada área é um bairro (nome igual ao da lista, sem diferença de acento ou maiúscula) ou um local de votação (basta um trecho do nome).",
   "titulo": "Apuração paralela 2026",
   "secoes": ["data/2026-1/", "data/2024-1/"],
   "municipios": [
-    { "cd": "15997", "nome": "Paraipaba" },
-    { "cd": "15059", "nome": "Paracuru" }
+    {"cd": "15997", "nome": "Paraipaba"},
+    {"cd": "15059", "nome": "Paracuru"}
   ],
   "candidatos": [
-    { "cargo": "Governador", "numero": "13", "nome": "Elmano", "chapa": true },
-    { "cargo": "Governador", "numero": "45", "nome": "Ciro", "chapa": false },
-    { "cargo": "Deputado Federal", "numero": "1515", "nome": "Yury do Paredão", "chapa": true },
-    { "cargo": "Deputado Estadual", "numero": "33000", "nome": "Carlos Júnior", "chapa": true },
-    { "cargo": "Deputado Estadual", "numero": "15333", "nome": "Daniel Oliveira", "chapa": true }
+    {"cargo": "Governador", "numero": "13", "nome": "Elmano", "chapa": true},
+    {"cargo": "Governador", "numero": "45", "nome": "Ciro", "chapa": false},
+    {"cargo": "Deputado Federal", "numero": "1515", "nome": "Yury do Paredão", "chapa": true},
+    {"cargo": "Deputado Estadual", "numero": "33000", "nome": "Carlos Júnior", "chapa": true},
+    {"cargo": "Deputado Estadual", "numero": "15333", "nome": "Daniel Oliveira", "chapa": true}
   ],
   "ajustes_secoes": [
     {
@@ -21,5 +21,48 @@
       "local": "EMTI HUMBERTO VIEIRA PESSOA (ALTINA)",
       "bairro": "CENTRO"
     }
+  ],
+  "responsaveis": [
+    { "nome": "Men", "cd": "15997", "areas": [
+      {"rotulo": "Figueiredo", "local": "FRANCISCO FIGUEIREDO"},
+      {"rotulo": "Setor B", "bairro": "SETOR B"},
+      {"rotulo": "Cacimbão", "bairro": "CACIMBÃO DOS TABOSAS"}
+    ] },
+    { "nome": "Manu", "cd": "15997", "areas": [
+      {"rotulo": "Barreiras", "bairro": "BARREIRAS"},
+      {"rotulo": "Flávio Granjeiro", "local": "FLÁVIO GOMES GRANJEIRO"},
+      {"rotulo": "C1", "bairro": "SETOR C1"}
+    ] },
+    { "nome": "Bobó", "cd": "15997", "areas": [
+      {"rotulo": "C2", "bairro": "SETOR C2"},
+      {"rotulo": "D2", "bairro": "SETOR D2"},
+      {"rotulo": "D1", "bairro": "SETOR D1"},
+      {"rotulo": "Córrego do Mato", "bairro": "CORREGO DO MATO"}
+    ] },
+    { "nome": "Leandro", "cd": "15997", "areas": [
+      {"rotulo": "Segunda Etapa", "bairro": "2ª ETAPA - SETOR G/H"},
+      {"rotulo": "Zabelê", "bairro": "ZABELE"},
+      {"rotulo": "São Miguel", "bairro": "SÃO MIGUEL"}
+    ] },
+    { "nome": "Rafael", "cd": "15997", "areas": [
+      {"rotulo": "Humberto", "local": "HUMBERTO VIEIRA PESSOA"},
+      {"rotulo": "Betel", "local": "BETEL"},
+      {"rotulo": "Ageu Romero", "local": "AGEU ROMERO"}
+    ] },
+    { "nome": "Veridianny", "cd": "15997", "areas": [
+      {"rotulo": "Camboas", "bairro": "CAMBOAS"},
+      {"rotulo": "Alto do Cipó", "bairro": "ALTO CIPÓ"},
+      {"rotulo": "Lagoinha", "bairro": "LAGOINHA"}
+    ] },
+    { "nome": "Patrícia", "cd": "15997", "areas": [
+      {"rotulo": "Setor E", "bairro": "SETOR E"},
+      {"rotulo": "Centro Gerencial", "bairro": "CENTRO GERENCIAL"},
+      {"rotulo": "Camburão", "bairro": "CAMBURÃO"}
+    ] },
+    { "nome": "Roberta", "cd": "15997", "areas": [
+      {"rotulo": "Boa Vista", "bairro": "BOA VISTA-DISTRITO"},
+      {"rotulo": "Calumbi", "bairro": "CALUMBI DOS BENTOS"},
+      {"rotulo": "Pedrinhas", "bairro": "PEDRINHAS"}
+    ] }
   ]
 }

@@ -33,7 +33,7 @@
   let assinatura = null;       // muda quando algum boletim muda (evita redesenhar à toa)
   let ultimaLeitura = null;
   let timer = null;
-  const ui = { vista: 'todos', abertos: new Set(), cargosAbertos: new Set(), erroApoiados: '', modal: null, form: null, erro: '', erroLogin: '', aviso: '', erroCarga: '', erroLeitura: '', semTabela: false };
+  const ui = { vista: 'todos', abertos: new Set(), cargosAbertos: new Set(), respAbertos: new Set(), erroApoiados: '', modal: null, form: null, erro: '', erroLogin: '', aviso: '', erroCarga: '', erroLeitura: '', semTabela: false };
 
   // ---------- utilidades ----------
   const MAPA_ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -77,6 +77,7 @@
     cfg = await resp.json();
     cfg.municipios = (cfg.municipios || []).map((m) => ({ cd: String(m.cd), nome: m.nome }));
     cfg.candidatos = (cfg.candidatos || []).map((c) => Object.assign({}, c, { numero: String(c.numero), chapa: c.chapa !== false }));
+    cfg.responsaveis = (cfg.responsaveis || []).map((r) => ({ nome: String(r.nome || ''), cd: String(r.cd || ''), areas: (r.areas || []).filter((a) => a && (a.bairro || a.local)) }));
     cfg.cargos = [];
     for (const c of cfg.candidatos) if (!cfg.cargos.includes(c.cargo)) cfg.cargos.push(c.cargo);
     if (!cfg.municipios.length || !cfg.candidatos.length) throw new Error(ARQUIVO_CONFIG + ' sem municípios ou candidatos');
@@ -367,7 +368,7 @@
     const cds = ui.vista === 'todos' ? cfg.municipios.map((m) => m.cd) : [ui.vista];
     const porMun = cds.map((cd) => ({ cd, nome: nomeMun(cd), secoes: secoesDe(cd) }));
     const t = somar(porMun.flatMap((x) => x.secoes));
-    alvo.innerHTML = barraStatus() + avisos() + painelPlacar(t, porMun) + porMun.map(blocoMunicipio).join('') + ultimosLancamentos(porMun);
+    alvo.innerHTML = barraStatus() + avisos() + painelPlacar(t, porMun) + painelControle(porMun) + porMun.map(blocoMunicipio).join('') + ultimosLancamentos(porMun);
   }
 
   function barraStatus() {
@@ -492,6 +493,113 @@
       '<tfoot><tr><td class="texto">Total ' + esc(x.nome) + '</td><td class="num" data-rotulo="Seções">' + t.apuradas + '/' + t.total + '</td>' +
         '<td class="num" data-rotulo="Votos apurados">' + fmtInt(t.comparecimento) + '</td>' + cols.map((c) => celulaCandidato(c, t)).join('') + '</tr></tfoot></table></div>' +
       '<p class="dica ap-nota">' + fonte + 'Seção nova, que não está na lista: lance o boletim informando o número dela. Seção que não existe mais: abra o bairro e marque "Sem urna", para sair da contagem.</p></section>';
+  }
+
+  // ---------- controle de envio (só para a equipe) ----------
+  const chaveTexto = (t) => normalizar(t).replace(/[^a-z0-9]+/g, ' ').trim();
+  const listaTexto = (itens) => (itens.length > 1 ? itens.slice(0, -1).join(', ') + ' e ' + itens[itens.length - 1] : itens.join(''));
+
+  /** Área do responsável que contém a seção: bairro com o mesmo nome ou local de votação que contém o trecho. */
+  function areaDe(r, s) {
+    for (const a of r.areas) {
+      if (a.bairro && chaveTexto(a.bairro) === chaveTexto(s.bairro)) return a;
+      if (a.local && chaveTexto(s.local).includes(chaveTexto(a.local))) return a;
+    }
+    return null;
+  }
+
+  /** Divide as seções do município entre os responsáveis (a primeira área que bater vale) e separa as que ficam sem ninguém. */
+  function controleDe(cd) {
+    const resps = cfg.responsaveis.filter((r) => r.cd === cd).map((r) => ({ r, areas: r.areas.map((a) => ({ a, secoes: [] })) }));
+    const sem = [];
+    for (const s of secoesDe(cd)) {
+      const dono = resps.find((x) => areaDe(x.r, s));
+      if (dono) dono.areas[dono.r.areas.indexOf(areaDe(dono.r, s))].secoes.push(s);
+      else if (s.situacao !== 'fora') sem.push(s);
+    }
+    return { resps, sem };
+  }
+
+  const pendentes = (x) => x.areas.map((y) => ({ a: y.a, secoes: y.secoes.filter((s) => s.situacao === 'pendente') })).filter((y) => y.secoes.length);
+
+  function painelControle(porMun) {
+    if (!podeLancar() || !cfg.responsaveis.length) return '';
+    const grupos = porMun.map((x) => Object.assign({ cd: x.cd, nome: x.nome }, controleDe(x.cd))).filter((g) => g.resps.length);
+    if (!grupos.length) return '';
+    let completos = 0;
+    let total = 0;
+    let faltam = 0;
+    let corpo = '';
+    for (const g of grupos) {
+      if (grupos.length > 1) corpo += '<div class="ap-resp-mun">' + esc(g.nome) + '</div>';
+      for (const x of g.resps) {
+        const secs = x.areas.flatMap((y) => y.secoes).filter((s) => s.situacao !== 'fora');
+        const ok = secs.filter((s) => s.situacao === 'apurada').length;
+        const falta = secs.length - ok;
+        total++;
+        if (secs.length && !falta) completos++;
+        faltam += falta;
+        const chave = g.cd + '|' + x.r.nome;
+        const aberto = ui.respAbertos.has(chave);
+        const estado = !secs.length ? 'vazio' : !falta ? 'completo' : ok ? 'parcial' : 'nada';
+        corpo += '<div class="ap-resp ap-resp-' + estado + '">' +
+          '<button type="button" class="ap-resp-topo" data-ap="resp" data-chave="' + esc(chave) + '" aria-expanded="' + aberto + '">' +
+            '<span class="ap-resp-icone" aria-hidden="true">' + (estado === 'completo' ? '✓' : falta) + '</span>' +
+            '<span class="ap-resp-nome"><strong>' + esc(x.r.nome) + '</strong><span class="dica">' + esc(listaTexto(x.r.areas.map((a) => a.rotulo))) + '</span></span>' +
+            '<span class="ap-resp-num"><strong>' + ok + '/' + secs.length + '</strong><small>' + (estado === 'completo' ? 'completo' : estado === 'vazio' ? 'sem seções' : 'faltam ' + falta) + '</small></span>' +
+            '<span class="ap-progresso"><span style="width:' + pct(ok, secs.length).toFixed(1) + '%"></span></span>' +
+          '</button>' + (aberto ? detalheResponsavel(x, chave, falta) : '') + '</div>';
+      }
+      if (g.sem.length) {
+        corpo += '<p class="dica ap-resp-sem">Sem responsável em ' + esc(g.nome) + ': ' + esc(listaTexto(g.sem.map((s) => 'seção ' + s.secao + ' (' + titulo(s.bairro) + ')'))) + '.</p>';
+      }
+    }
+    return '<section class="painel ap-controle"><div class="painel-cabecalho"><h2>Controle de envio</h2>' +
+      '<span class="dica">' + completos + ' de ' + total + ' completos · ' + (faltam ? 'faltam ' + faltam + ' boletins' : 'todos os boletins lançados') + ' · só a equipe vê esta parte</span></div>' +
+      '<div class="ap-resp-lista">' + corpo + '</div></section>';
+  }
+
+  function detalheResponsavel(x, chave, falta) {
+    const chip = (s) => {
+      if (s.situacao === 'apurada') return '<span class="ap-chip ok" title="Lançada às ' + esc(hora(s.reg.atualizado_em)) + '">' + esc(s.secao) + ' ✓</span>';
+      if (s.situacao === 'fora') return '<span class="ap-chip fora" title="Sem urna em 2026">' + esc(s.secao) + '</span>';
+      return '<button type="button" class="ap-chip falta" data-ap="lancar" data-cd="' + s.cd + '" data-secao="' + esc(s.secao) + '" title="Lançar o boletim da seção ' + esc(s.secao) + '">' + esc(s.secao) + '</button>';
+    };
+    return '<div class="ap-resp-detalhe">' + x.areas.map((y) => {
+      const vivas = y.secoes.filter((s) => s.situacao !== 'fora');
+      const ok = vivas.filter((s) => s.situacao === 'apurada').length;
+      return '<div class="ap-resp-area"><div class="ap-resp-area-topo"><strong>' + esc(y.a.rotulo) + '</strong>' +
+        '<span class="dica">' + (y.secoes.length ? ok + '/' + vivas.length : 'nenhuma seção encontrada: confira o nome no data/apuracao.json') + '</span></div>' +
+        '<div class="ap-chips">' + y.secoes.map(chip).join('') + '</div></div>';
+    }).join('') +
+    (falta ? '<button type="button" class="btn btn-mini ap-copiar" data-ap="copiar-falta" data-chave="' + esc(chave) + '">Copiar o que falta</button>' : '') + '</div>';
+  }
+
+  /** Texto para cobrar no WhatsApp: "Men, faltam 3 boletins: Figueiredo (seções 140 e 141) e Setor B (seção 160)." */
+  function textoFalta(chave) {
+    const [cd, nome] = chave.split('|');
+    const x = controleDe(cd).resps.find((y) => y.r.nome === nome);
+    if (!x) return '';
+    const p = pendentes(x);
+    const n = p.reduce((t, y) => t + y.secoes.length, 0);
+    if (!n) return nome + ', todos os seus boletins já foram lançados. Obrigado!';
+    return nome + ', falta' + (n > 1 ? 'm ' + n + ' boletins' : ' 1 boletim') + ': ' +
+      listaTexto(p.map((y) => y.a.rotulo + ' (seç' + (y.secoes.length > 1 ? 'ões ' : 'ão ') + listaTexto(y.secoes.map((s) => s.secao)) + ')')) + '.';
+  }
+
+  function copiarTexto(texto) {
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(texto);
+    return new Promise((ok, falha) => {
+      const area = document.createElement('textarea');
+      area.value = texto;
+      area.setAttribute('readonly', '');
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      try { if (document.execCommand('copy')) ok(); else falha(new Error('cópia recusada')); } catch (e) { falha(e); }
+      area.remove();
+    });
   }
 
   function listaSecoes(secoes) {
@@ -850,6 +958,19 @@
       const chave = alvo.dataset.chave;
       if (ui.abertos.has(chave)) ui.abertos.delete(chave); else ui.abertos.add(chave);
       renderCorpo();
+      return;
+    }
+    if (acao === 'resp') {
+      const chave = alvo.dataset.chave;
+      if (ui.respAbertos.has(chave)) ui.respAbertos.delete(chave); else ui.respAbertos.add(chave);
+      renderCorpo();
+      return;
+    }
+    if (acao === 'copiar-falta') {
+      const texto = textoFalta(alvo.dataset.chave);
+      copiarTexto(texto)
+        .then(() => { alvo.textContent = 'Copiado! Cole no WhatsApp'; setTimeout(() => { if (alvo.isConnected) alvo.textContent = 'Copiar o que falta'; }, 2500); })
+        .catch(() => { prompt('Copie o texto:', texto); });
       return;
     }
     if (acao === 'ver-mais') {
