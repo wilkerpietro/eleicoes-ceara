@@ -100,7 +100,8 @@
     if (/email not confirmed/i.test(m)) return 'E-mail ainda não confirmado.';
     if (/rate limit/i.test(m)) return 'Muitas tentativas; aguarde um instante.';
     if (/row-level security|permission denied|401|403/i.test(m)) return 'Sem permissão para gravar: entre com um usuário autorizado.';
-    if (/Failed to fetch|NetworkError/i.test(m)) return 'Sem conexão com o banco de dados.';
+    // "Failed to fetch" (Chrome), "Load failed" (Safari/iPhone), "NetworkError" (Firefox): o servidor não respondeu
+    if (/Failed to fetch|Load failed|NetworkError|fetch failed|Network request failed/i.test(m)) return 'Sem conexão com o banco de dados: o servidor não respondeu. Confira a internet; se ela estiver normal, o banco pode estar pausado e o administrador precisa reativá-lo no painel do Supabase.';
     return m;
   }
 

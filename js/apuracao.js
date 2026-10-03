@@ -796,7 +796,15 @@
           if (!podeLancar()) ui.aviso = 'Sua conta ainda não foi autorizada pelo administrador para lançar boletins.';
           render();
         })
-        .catch((e) => { ui.erroLogin = e.message; renderModal(); });
+        .catch((e) => {
+          // mostra o erro sem redesenhar o formulário (o e-mail e a senha digitados continuam lá)
+          ui.erroLogin = e.message;
+          let caixa = form.querySelector('.erro');
+          if (!caixa) { caixa = document.createElement('div'); caixa.className = 'erro'; form.querySelector('.la-form-acoes').before(caixa); }
+          caixa.textContent = e.message;
+          botao.disabled = false;
+          botao.textContent = 'Entrar';
+        });
     }
   }
 
