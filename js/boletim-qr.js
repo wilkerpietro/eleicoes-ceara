@@ -254,40 +254,70 @@
     return { i: +m[1], n: +m[2], versao: m[3], dados: m[5], hash: m[6].toUpperCase(), texto };
   }
 
-  /**
-   * Junta as partes em boletins, na ordem das unidades: a parte 1 abre um boletim e as partes seguintes (do mesmo
-   * total) completam o boletim aberto. Devolve [{ partes: [p1..pN ou faltando], n, origem }].
-   */
-  function montar(unidades) {
-    const boletins = [];
-    let atual = null;
+  /** Partes únicas encontradas nas unidades, cada uma com o arquivo de onde veio. */
+  function partesDe(unidades) {
+    const partes = [];
     for (const u of unidades) {
-      const partes = u.textos.map(separarParte).filter(Boolean).sort((a, b) => a.i - b.i);
-      for (const p of partes) {
-        if (p.i === 1 || !atual || atual.n !== p.n || atual.partes[p.i - 1]) {
-          if (atual && atual.partes[p.i - 1] && atual.partes[p.i - 1].texto === p.texto) continue; // mesmo QR lido de novo
-          atual = { n: p.n, partes: new Array(p.n).fill(null), origem: [] };
-          boletins.push(atual);
-        }
-        atual.partes[p.i - 1] = p;
-        const onde = u.arquivo + (u.unidade === 'foto' ? '' : ', ' + u.unidade);
-        if (!atual.origem.includes(onde)) atual.origem.push(onde);
+      for (const t of u.textos) {
+        const p = separarParte(t);
+        if (!p || partes.some((x) => x.texto === p.texto)) continue; // o mesmo QR lido duas vezes conta uma
+        p.onde = u.arquivo + (u.unidade === 'foto' || !u.unidade ? '' : ', ' + u.unidade);
+        partes.push(p);
       }
+    }
+    return partes;
+  }
+
+  /**
+   * Junta as partes em boletins sem depender da ordem dos arquivos: cada parte 1 abre um boletim, e a parte k
+   * entra no boletim cujo código de segurança acumulado bate com ela (o HASH da parte k só confere com as partes
+   * anteriores certas). Partes que ainda não puderam ser encaixadas (falta uma anterior) ficam no boletim do mesmo
+   * total, só para dizer quais já foram lidas. Devolve [{ n, partes: [p1..pN ou null], origem: [arquivos] }].
+   */
+  async function montar(unidades) {
+    const partes = partesDe(unidades);
+    const usadas = new Set();
+    const boletins = [];
+    const anotar = (b, p) => { b.partes[p.i - 1] = p; usadas.add(p); if (!b.origem.includes(p.onde)) b.origem.push(p.onde); };
+    for (const p1 of partes.filter((p) => p.i === 1)) {
+      const b = { n: p1.n, partes: new Array(p1.n).fill(null), origem: [] };
+      anotar(b, p1);
+      let acumulado = p1.dados + ' HASH:' + p1.hash;
+      for (let k = 2; k <= p1.n; k++) {
+        let achou = null;
+        for (const c of partes) {
+          if (usadas.has(c) || c.i !== k || c.n !== p1.n) continue;
+          if ((await sha512Hex(acumulado + ' ' + c.dados)) === c.hash) { achou = c; break; }
+        }
+        if (!achou) break; // sem a parte k, as seguintes ainda não podem ser conferidas
+        anotar(b, achou);
+        acumulado += ' ' + achou.dados + ' HASH:' + achou.hash;
+      }
+      boletins.push(b);
+    }
+    // sobras: partes cuja anterior ainda não chegou (ou sem a parte 1)
+    for (const p of partes.filter((x) => !usadas.has(x))) {
+      let b = boletins.find((x) => x.n === p.n && !x.partes[p.i - 1] && x.partes.some((y) => !y));
+      if (!b) { b = { n: p.n, partes: new Array(p.n).fill(null), origem: [] }; boletins.push(b); }
+      anotar(b, p);
     }
     return boletins;
   }
 
-  /** Acrescenta a um boletim incompleto as partes encontradas em novas unidades (fotos/PDF enviados depois). */
-  function completar(boletim, unidades) {
-    for (const u of unidades) {
-      for (const p of u.textos.map(separarParte).filter(Boolean)) {
-        if (p.n === boletim.n && !boletim.partes[p.i - 1]) {
-          boletim.partes[p.i - 1] = p;
-          if (!boletim.origem.includes(u.arquivo)) boletim.origem.push(u.arquivo);
-        }
-      }
+  /** Completa um boletim incompleto com as partes de novas fotos/PDF (refaz a junção com tudo o que já foi lido). */
+  async function completar(boletim, unidades) {
+    const antigas = boletim.partes.filter(Boolean);
+    const juntos = await montar([{ arquivo: '', unidade: '', textos: antigas.map((p) => p.texto) }].concat(unidades));
+    // fica o boletim que mais reaproveita as partes já lidas
+    let melhor = null;
+    let pontos = -1;
+    for (const b of juntos) {
+      const n = b.partes.filter((p) => p && antigas.some((a) => a.texto === p.texto)).length;
+      if (n > pontos) { melhor = b; pontos = n; }
     }
-    return boletim;
+    if (!melhor) return boletim;
+    melhor.origem = Array.from(new Set(boletim.origem.concat(melhor.origem.filter(Boolean))));
+    return melhor;
   }
 
   async function sha512Hex(texto) {

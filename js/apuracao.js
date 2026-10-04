@@ -1038,10 +1038,10 @@
     try {
       const unidades = await global.BoletimQR.lerArquivos(arquivos, (t) => { ui.leitura.lendo = t; atualizarProgresso(); });
       if (alvo != null && ui.leitura.itens[alvo] && ui.leitura.itens[alvo].tipo === 'faltam') {
-        const b = global.BoletimQR.completar(ui.leitura.itens[alvo].boletim, unidades);
+        const b = await global.BoletimQR.completar(ui.leitura.itens[alvo].boletim, unidades);
         ui.leitura.itens[alvo] = await avaliarBoletim(b);
       } else {
-        const boletins = global.BoletimQR.montar(unidades);
+        const boletins = await global.BoletimQR.montar(unidades);
         // arquivo sem nenhum QR Code de boletim (num PDF, página sem QR é normal: o QR fica no fim do boletim)
         for (const nome of Array.from(new Set(unidades.map((u) => u.arquivo)))) {
           if (!unidades.some((u) => u.arquivo === nome && u.textos.length)) {
