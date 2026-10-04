@@ -613,6 +613,23 @@ body.la-modal-aberto { overflow: hidden; }
 .tse-municipios .ap-abas { margin-bottom: 0; flex: 1 1 260px; }
 .tse-sel { flex: 0 1 240px; }
 
+/* leitura do boletim pelo QR Code */
+.ap-botoes-lancar { display: flex; flex-wrap: wrap; gap: 8px; }
+.ap-btn-ler { font-size: 1rem; padding: 10px 14px; font-weight: 600; }
+.ap-leitura-progresso:empty { display: none; }
+.ap-leitura-progresso { margin: 4px 0 10px; font-weight: 600; color: var(--texto-suave); }
+.ap-leitura-lista { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ap-leitura-item { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 10px 12px; border: 1px solid var(--borda); border-radius: var(--raio-p); background: #fff; font-size: 0.92rem; }
+.ap-leitura-icone { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; background: #e3e5e8; color: var(--texto-suave); }
+.ap-leitura-salvo, .ap-leitura-igual { border-color: #9fd8b6; background: #f3fbf6; }
+.ap-leitura-salvo .ap-leitura-icone, .ap-leitura-igual .ap-leitura-icone { background: var(--verde); color: #fff; }
+.ap-leitura-faltam, .ap-leitura-conflito, .ap-leitura-aviso, .ap-leitura-formulario { border-color: #f3d9a4; background: #fffaf0; }
+.ap-leitura-faltam .ap-leitura-icone, .ap-leitura-conflito .ap-leitura-icone, .ap-leitura-aviso .ap-leitura-icone, .ap-leitura-formulario .ap-leitura-icone { background: #fff4e0; color: #8a5300; }
+.ap-leitura-erro { border-color: #f1b5b5; background: #fff7f7; }
+.ap-leitura-erro .ap-leitura-icone { background: #fdecec; color: #a61b1b; }
+.ap-leitura-acoes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+@media (max-width: 700px) { .ap-botoes-lancar { width: 100%; } .ap-botoes-lancar .btn { flex: 1 1 auto; } }
+
 /* popup de lançamento */
 .ap-modal { width: min(640px, 100%); }
 .ap-modal-login { width: min(440px, 100%); }
@@ -656,7 +673,6 @@ body.la-modal-aberto { overflow: hidden; }
   .ap-grande strong { font-size: 1.8rem; }
   .ap-grandes { gap: 8px; }
   .ap-grande { padding: 10px 12px; }
-  .ap-btn-lancar { width: 100%; }
   /* tabela por bairro vira uma lista de cartões */
   .ap-tabela, .ap-tabela tbody, .ap-tabela tfoot { display: block; }
   .ap-tabela thead { display: none; }
