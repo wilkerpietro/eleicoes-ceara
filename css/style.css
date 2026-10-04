@@ -608,6 +608,11 @@ body.la-modal-aberto { overflow: hidden; }
 .ap-copiar { align-self: flex-start; }
 .ap-resp-sem { grid-column: 1 / -1; margin: 4px 2px 0; color: #8a5300; }
 
+/* resultado oficial (TSE) */
+.tse-municipios { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; margin-bottom: 16px; }
+.tse-municipios .ap-abas { margin-bottom: 0; flex: 1 1 260px; }
+.tse-sel { flex: 0 1 240px; }
+
 /* popup de lançamento */
 .ap-modal { width: min(640px, 100%); }
 .ap-modal-login { width: min(440px, 100%); }

@@ -1,0 +1,9 @@
+{
+  "_comentario": "Tela 'Resultado oficial (TSE)': lê os arquivos públicos de divulgação de resultados do TSE. 'host' e 'ambiente' formam o endereço (oficial: https://resultados.tse.jus.br/oficial); 'ciclo' é o da eleição no catálogo do TSE; 'uf' em minúsculo; 'municipios' são os atalhos no topo da tela (código TSE); 'intervalo_segundos' é de quanto em quanto tempo a tela relê os arquivos (mínimo 30).",
+  "host": "https://resultados.tse.jus.br",
+  "ambiente": "oficial",
+  "ciclo": "ele2026",
+  "uf": "ce",
+  "intervalo_segundos": 60,
+  "municipios": ["15997", "15059"]
+}

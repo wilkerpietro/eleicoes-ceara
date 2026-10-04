@@ -51,6 +51,16 @@ Tela **Apuração paralela**, primeiro item de **Eleições 2026** no menu (link
 - **Atualização**: a tela relê os boletins a cada 20 segundos (e ao voltar para a aba), sem perder o que estiver sendo digitado no formulário.
 - Se a biblioteca do Supabase não carregar (internet ruim, bloqueio), a tela mostra erro em vez de salvar no navegador. Sem banco configurado em `data/config.json`, os boletins ficam no navegador (`localStorage`), útil só para testar.
 
+## Resultado oficial (TSE)
+
+Tela **Resultado oficial (TSE)**, em **Eleições 2026** no menu (link direto: `#tela=tse`). Lê, direto do navegador, os arquivos públicos de divulgação de resultados do TSE (`resultados.tse.jus.br`) e se atualiza sozinha a cada 60 segundos (e no botão "Atualizar agora"). É pública, sem login.
+
+- Atalhos para Paraipaba e Paracuru e um menu com os demais municípios do Ceará.
+- Seções totalizadas, votos válidos para governador, comparecimento e as listas de Governador, Deputado Federal, Deputado Estadual, Senador e Presidente, do mais votado para o menos votado (deputados: 10 primeiros, mais os da nossa chapa que estiverem abaixo, e "Ver mais"). Os candidatos do `data/apuracao.json` aparecem em destaque.
+- Como os arquivos são lidos (formato confirmado nos simulados oficiais de setembro/2026): o catálogo `oficial/comum/config/ele-c.jws` informa o ciclo (`ele2026`), o código da eleição estadual (Governador, Senador, Deputados) e o da federal (Presidente) e o modelo de diretório; o resultado do município fica em `<diretório>/ce<município>-c<cargo>-e<eleição>-u.jws` (cargo 0003 Governador, 0005 Senador, 0006 Dep. Federal, 0007 Dep. Estadual, 0001 Presidente). Os arquivos vêm como JWS (cabeçalho.conteúdo.assinatura); a tela usa o conteúdo, sem conferir a assinatura. As seções totalizadas vêm do próprio arquivo, se ele trouxer, ou do arquivo de acompanhamento da UF (`ce-e<eleição>-ab.jws`).
+- Antes das 17h do dia da eleição os arquivos dos municípios ainda não existem, e a tela avisa "Ainda sem dados publicados". Endereço, ciclo, UF, atalhos e intervalo ficam em `data/tse.json`.
+- O TSE limita a 100 requisições por segundo por endereço de internet; cada atualização desta tela faz 5 a 6 requisições.
+
 ## Como rodar localmente
 
 Os dados são carregados via `fetch`, então a página precisa ser servida por HTTP (abrir o `index.html` direto do disco não funciona).
@@ -75,11 +85,13 @@ css/style.css              estilos
 js/csv.js                  leitor de CSV (separador ";")
 js/app.js                  carga dos dados, agregações e renderização
 js/apuracao.js             tela de apuração paralela 2026 (boletins de urna por seção)
+js/tse.js                  tela do resultado oficial do TSE por município (arquivos públicos de divulgação)
 scripts/serve.ps1          servidor HTTP de desenvolvimento (Windows)
 scripts/build-municipios.sh  converte o "votacao_secao" do TSE em uma pasta por município
 scripts/secoes-apuracao.sh   lista de seções de 2026 da apuração (a partir da lista do TRE-CE)
 scripts/supabase-apuracao.sql  tabela e regras de acesso da apuração paralela
 data/apuracao.json         municípios, lista de seções e candidatos acompanhados na apuração paralela
+data/tse.json              endereço, ciclo, UF e atalhos da tela do resultado oficial do TSE
 data/eleicoes.json         manifesto das eleições (pasta, lista de municípios, fotos)
 data/cargos.json           código do cargo (CD_CARGO do TSE) -> nome
 data/partidos.json         número do partido -> sigla, por ano
