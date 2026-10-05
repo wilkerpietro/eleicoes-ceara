@@ -55,7 +55,9 @@ jobs:
         run: |
           if [ -z "$MUNICIPIOS" ]; then MUNICIPIOS=$(printf '%s' "$MENSAGEM" | sed -n 's/.*\[municipios: *\([0-9, ]*\)\].*/\1/p' | head -n 1); fi
           echo "Municípios: ${MUNICIPIOS:-todos}"
-          node scripts/boletins-2026.js --municipios="$MUNICIPIOS" --locais=locais --amostra=amostra-tse
+          # com poucos municípios, guarda também os arquivos dos boletins (para conferência)
+          EXTRA=""; if [ -n "$MUNICIPIOS" ]; then EXTRA="--salvar-bu=amostra-tse/bu"; fi
+          node scripts/boletins-2026.js --municipios="$MUNICIPIOS" --locais=locais --amostra=amostra-tse $EXTRA
 
       - name: Resumo
         if: always()

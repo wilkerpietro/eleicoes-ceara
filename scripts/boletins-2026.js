@@ -10,8 +10,8 @@
      1. catálogo <host>/<ambiente>/comum/config/ele-c.jws: ciclo (ele2026), pleito e eleições do 1º turno;
      2. seções da UF: <base>/config/ce/ce-p<pleito 6 díg>-cs.json, com municípios, zonas e seções;
      3. por seção: <base>/dados/ce/<mun>/<zona>/<seção>/p<pleito>-ce-m<mun>-z<zona>-s<seção>-aux.json, que lista os
-        arquivos da urna (hash e nomes); o "imgbu" é a cópia do boletim que a urna imprimiu, com o mesmo texto do
-        PDF "Via Digital", lido por js/boletim-texto.js (que confere as somas de cada cargo);
+        arquivos da urna (hash e nomes); o boletim é o "-bu.dat" (ASN.1, o arquivo da totalização), lido por
+        js/boletim-bu.js; em eleições antigas, o "imgbu" (texto do boletim impresso), lido por js/boletim-texto.js;
      onde <base> = <host>/<ambiente>/<ciclo>/arquivo-urna/<pleito>.
    Nome, partido, foto e ocupação vêm do cadastro data/2026-1/candidatos.csv; a situação (eleito, 2º turno...) do
    resultado da UF no próprio site do TSE, quando disponível. Local, endereço e bairro: lista do TRE-CE nos municípios
@@ -19,7 +19,7 @@
    ele, o local de mesmo número em 2024/2022.
 
    Uso: node scripts/boletins-2026.js [--municipios=15997,15059] [--locais=pasta_ou_csv] [--amostra=pasta]
-        [--por-segundo=50] [--paralelo=24] [--saida=data/2026-1] [--host=https://resultados.tse.jus.br]
+        [--salvar-bu=pasta] [--por-segundo=50] [--paralelo=24] [--saida=data/2026-1] [--host=https://resultados.tse.jus.br]
    O TSE limita a 100 requisições por segundo por endereço; o padrão aqui é 50. Precisa de Node 18 ou mais novo. */
 'use strict';
 const fs = require('fs');
@@ -27,6 +27,7 @@ const path = require('path');
 const readline = require('readline');
 const { spawnSync } = require('child_process');
 const BoletimTexto = require('../js/boletim-texto.js');
+const BoletimBu = require('../js/boletim-bu.js');
 
 const RAIZ = path.resolve(__dirname, '..');
 const args = {};
@@ -41,6 +42,7 @@ const PARALELO = Math.max(1, Number(args.paralelo) || 24);
 const FILTRO = new Set(String(args.municipios || '').split(/[,\s]+/).filter(Boolean).map((c) => c.padStart(5, '0')));
 const AMOSTRA = args.amostra ? path.resolve(RAIZ, args.amostra) : null;
 const LOCAIS = args.locais ? path.resolve(RAIZ, args.locais) : null;
+const SALVAR_BU = args['salvar-bu'] ? path.resolve(RAIZ, args['salvar-bu']) : null;
 const NOME_CARGO = BoletimTexto.NOME_CARGO;
 const CARGOS_PROP = new Set([6, 7, 8, 13]);
 
@@ -149,13 +151,16 @@ async function secoesDaUf(base, pleito) {
 }
 
 // ---------- boletim de cada seção ----------
+/** Arquivo do boletim na lista da seção: o binário do BU ("-bu.dat", tipo "bu"; desde 2024) ou, antes, o imgbu (texto). */
 function escolherArquivo(aux) {
   const ordem = (h) => (/totaliz/i.test(h.st || '') ? 0 : /receb|apurad/i.test(h.st || '') ? 1 : /exclu|substitu|cancel/i.test(h.st || '') ? 9 : 2);
   const hashes = (aux.hashes || []).filter((h) => h && h.hash && String(h.hash) !== '0').sort((a, b) => ordem(a) - ordem(b));
   for (const h of hashes) {
-    const nomes = (h.arq || h.nmarq || []).map((a) => (typeof a === 'string' ? a : a && (a.nm || a.nome))).filter(Boolean);
-    const nm = nomes.find((n) => /\.imgbu$/i.test(n)) || nomes.find((n) => /\.imgbusa$/i.test(n)) || nomes.find((n) => /imgbu/i.test(n));
-    if (nm) return { hash: String(h.hash), nm, st: h.st || '' };
+    const arqs = (h.arq || h.nmarq || []).map((a) => (typeof a === 'string' ? { nm: a, tp: '' } : { nm: a && (a.nm || a.nome), tp: (a && a.tp) || '' })).filter((a) => a.nm);
+    const bu = arqs.find((a) => a.tp === 'bu') || arqs.find((a) => /(-bu\.dat|\.bu)$/i.test(a.nm)) || arqs.find((a) => a.tp === 'busa') || arqs.find((a) => /(-busa\.dat|\.busa)$/i.test(a.nm));
+    if (bu) return { hash: String(h.hash), nm: bu.nm, tipo: 'bu', st: h.st || '' };
+    const img = arqs.find((a) => /\.imgbu$/i.test(a.nm)) || arqs.find((a) => /\.imgbusa$/i.test(a.nm)) || arqs.find((a) => /imgbu/i.test(a.nm));
+    if (img) return { hash: String(h.hash), nm: img.nm, tipo: 'texto', st: h.st || '' };
   }
   return null;
 }
@@ -191,9 +196,10 @@ async function lerSecao(base, pleito, cd, s) {
   if (!arq) return { falta: 'sem boletim publicado (' + ((aux.hashes || []).map((h) => h.st).filter(Boolean).join(', ') || aux.st || 'sem urna') + ')' };
   const buf = await baixar(dir + arq.hash + '/' + arq.nm);
   if (!buf) return { falta: 'boletim listado mas não encontrado (' + arq.nm + ')' };
-  if (!guardarAmostra.primeiro) { guardarAmostra.primeiro = true; guardarAmostra('imgbu-exemplo-' + arq.nm, buf); }
+  if (!guardarAmostra.primeiro) { guardarAmostra.primeiro = true; guardarAmostra('boletim-exemplo-' + arq.nm, buf); }
+  if (SALVAR_BU) { fs.mkdirSync(path.join(SALVAR_BU, cd), { recursive: true }); fs.writeFileSync(path.join(SALVAR_BU, cd, arq.nm), buf); }
   try {
-    const lido = BoletimTexto.ler(textoDoImgbu(buf));
+    const lido = arq.tipo === 'bu' ? BoletimBu.ler(buf) : BoletimTexto.ler(textoDoImgbu(buf));
     if (parseInt(lido.cab.MUNI, 10) !== parseInt(cd, 10) || parseInt(lido.cab.SECA, 10) !== parseInt(s.secao, 10)) throw new Error('boletim de outra seção (' + lido.cab.MUNI + '/' + lido.cab.SECA + ')');
     if (lido.cab.FASE !== 'O') throw new Error('boletim não oficial (fase ' + lido.cab.FASE + ')');
     return { lido, arquivo: arq.nm };
