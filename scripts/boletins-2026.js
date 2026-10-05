@@ -323,7 +323,13 @@ async function main() {
       if (r.lido) (resultados.get(m.cd) || resultados.set(m.cd, []).get(m.cd)).push({ s, lido: r.lido });
       else if (r.falta) faltando.push({ cd: m.cd, municipio: m.nome, zona: +s.zona, secao: +s.secao, motivo: r.falta });
       else falhas.push({ cd: m.cd, municipio: m.nome, zona: +s.zona, secao: +s.secao, erro: r.erro });
-      if (++feitos % 500 === 0 || feitos === fila.length) {
+      // formato inesperado: se as 150 primeiras seções não deram nenhum boletim lido, para logo (o log e as amostras dizem por quê)
+      if (++feitos === 150 && !resultados.size && falhas.length + faltando.length >= 150) {
+        for (const f of falhas.slice(0, 5)) log('  erro: ' + f.municipio + ' zona ' + f.zona + ' seção ' + f.secao + ': ' + f.erro);
+        for (const f of faltando.slice(0, 5)) log('  sem boletim: ' + f.municipio + ' zona ' + f.zona + ' seção ' + f.secao + ': ' + f.motivo);
+        throw new Error('nenhum boletim lido nas 150 primeiras seções; parando');
+      }
+      if (feitos % 500 === 0 || feitos === fila.length) {
         log('  ' + feitos + '/' + fila.length + ' seções · lidas ' + (feitos - faltando.length - falhas.length) + ' · sem boletim ' + faltando.length + ' · com erro ' + falhas.length + ' · ' + Math.round((Date.now() - inicio) / 1000) + ' s · HTTP ' + JSON.stringify(contagem.status));
       }
     }

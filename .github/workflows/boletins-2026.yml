@@ -1,12 +1,16 @@
 # Baixa os boletins de urna das Eleições 2026 (1º turno) no Ceará, direto do site de resultados do TSE, e gera a
 # votação por seção no formato das pastas de 2022 e 2024 (data/2026-1/), com scripts/boletins-2026.js.
-# Roda na mão, pela aba Actions ("Run workflow"). O resultado vai para o ramo "dados-2026" (nunca direto no main),
+# Roda na mão, pela aba Actions ("Run workflow"), ou a cada envio (push) para o ramo "rodar-boletins-2026" (aí os
+# municípios podem vir na mensagem do commit, como "[municipios: 15997,15059]"; sem isso, todos).
+# O resultado vai para o ramo "dados-2026" (nunca direto no main),
 # para ser conferido antes de publicar. O log e amostras dos arquivos do TSE ficam em amostra-tse/ no mesmo ramo.
 # Roda no GitHub porque é de lá que os servidores do TSE são alcançados; nenhum segredo é necessário.
 
 name: Boletins 2026 (votos por seção)
 
 on:
+  push:
+    branches: [rodar-boletins-2026]
   workflow_dispatch:
     inputs:
       municipios:
@@ -47,7 +51,11 @@ jobs:
       - name: Baixar os boletins e montar data/2026-1
         env:
           MUNICIPIOS: ${{ inputs.municipios }}
-        run: node scripts/boletins-2026.js --municipios="$MUNICIPIOS" --locais=locais --amostra=amostra-tse
+          MENSAGEM: ${{ github.event.head_commit.message }}
+        run: |
+          if [ -z "$MUNICIPIOS" ]; then MUNICIPIOS=$(printf '%s' "$MENSAGEM" | sed -n 's/.*\[municipios: *\([0-9, ]*\)\].*/\1/p' | head -n 1); fi
+          echo "Municípios: ${MUNICIPIOS:-todos}"
+          node scripts/boletins-2026.js --municipios="$MUNICIPIOS" --locais=locais --amostra=amostra-tse
 
       - name: Resumo
         if: always()
