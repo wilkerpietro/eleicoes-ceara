@@ -423,6 +423,7 @@ body.la-modal-aberto { overflow: hidden; }
 .la-cab-lista { display: flex; align-items: center; gap: 12px; }
 .la-cab-lista h2 { margin-right: 4px; }
 .la-rodape-acoes { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.la-msg-export { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: #e8f4ee; color: #135c3d; font-size: 0.86rem; }
 .la-rodape-acoes .dica { margin-right: auto; }
 
 /* ---------- sincronização / login ---------- */

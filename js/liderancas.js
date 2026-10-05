@@ -181,13 +181,41 @@
     if (ui.erroSync) { ui.erroSync = ''; render(); }
   }
 
+  const nomeExport = () => 'liderancas-' + new Date().toISOString().slice(0, 10) + '.json';
+  const resumoExport = () => dados.liderancas.length + ' lideranças' + (dados.candidatos2026.length ? ', ' + dados.candidatos2026.length + ' candidatos manuais' : '');
+
+  /** Baixa o cadastro em JSON. Alguns navegadores baixam sem mostrar nada, por isso o aviso fica ao lado do botão. */
   function exportar() {
-    const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'liderancas-' + new Date().toISOString().slice(0, 10) + '.json';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    try {
+      const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = nomeExport();
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      ui.msgExport = 'Arquivo ' + nomeExport() + ' baixado (' + resumoExport() + '). Procure na pasta Downloads. Se não apareceu, use "Copiar dados".';
+    } catch (e) {
+      ui.msgExport = 'Não foi possível baixar o arquivo (' + e.message + '). Use "Copiar dados".';
+    }
+    render();
+  }
+
+  /** Copia o cadastro em JSON para a área de transferência (para colar numa conversa ou num arquivo). */
+  async function copiarExport() {
+    const texto = JSON.stringify(dados);
+    let ok = false;
+    try { await navigator.clipboard.writeText(texto); ok = true; } catch (e) {
+      // navegador sem a API de área de transferência: seleção num campo escondido
+      const campo = document.createElement('textarea');
+      campo.value = texto;
+      campo.setAttribute('readonly', '');
+      campo.style.position = 'fixed'; campo.style.opacity = '0';
+      document.body.appendChild(campo); campo.select();
+      try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
+      campo.remove();
+    }
+    ui.msgExport = ok ? 'Dados copiados (' + resumoExport() + '). Agora é só colar (Ctrl+V) onde precisar.' : 'O navegador não deixou copiar. Tente "Exportar" ou outro navegador.';
+    render();
   }
 
   function importar(arquivo) {
@@ -636,9 +664,11 @@
         '<td class="la-td-acoes"><button type="button" class="btn btn-mini" data-la="abrir" data-id="' + l.id + '">Detalhes</button></td></tr>').join('') ||
         '<tr><td colspan="4" class="vazio">Nenhuma liderança' + (q ? ' encontrada para "' + esc(ui.busca) + '"' : ' cadastrada') + '.</td></tr>') +
       '</tbody><tfoot><tr><td>' + filtradas.length + ' lideranças</td><td class="num">' + fmtInt(total24) + '</td><td class="num">' + fmtInt(total26) + '</td><td></td></tr></tfoot></table></div>' +
-      '<div class="la-rodape-acoes"><span class="dica">Dados salvos neste navegador.</span>' +
+      '<div class="la-rodape-acoes"><span class="dica">' + (nuvemAtiva() ? 'Dados no banco na nuvem; exportar baixa uma cópia.' : 'Dados salvos neste navegador.') + '</span>' +
       '<button type="button" class="btn btn-mini" data-la="exportar" title="Baixa um arquivo JSON com todo o cadastro">Exportar</button>' +
-      '<label class="btn btn-mini">Importar<input type="file" accept="application/json,.json" data-la="importar" hidden></label></div></section>';
+      '<button type="button" class="btn btn-mini" data-la="copiar-export" title="Copia o cadastro (JSON) para colar em outro lugar">Copiar dados</button>' +
+      '<label class="btn btn-mini">Importar<input type="file" accept="application/json,.json" data-la="importar" hidden></label></div>' +
+      (ui.msgExport ? '<div class="la-msg-export" role="status">' + esc(ui.msgExport) + '</div>' : '') + '</section>';
   }
 
   // ---------- popup de detalhes / edição ----------
@@ -1014,6 +1044,7 @@
       if (l && confirm('Excluir a liderança "' + l.nome + '"?')) { dados.liderancas = dados.liderancas.filter((x) => x.id !== l.id); salvar(); fecharModal(); }
     }
     else if (acao === 'exportar') exportar();
+    else if (acao === 'copiar-export') copiarExport();
     else if (acao === 'cargo26') { ui.cargo26 = alvo.dataset.valor; render(); }
     else if (acao === 'fechar-aviso') { ui.aviso = ''; render(); }
     else if (acao === 'fechar-erro') { ui.erroSync = ''; render(); }
