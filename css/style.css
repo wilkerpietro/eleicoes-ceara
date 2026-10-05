@@ -628,6 +628,7 @@ body.la-modal-aberto { overflow: hidden; }
 .ap-leitura-erro { border-color: #f1b5b5; background: #fff7f7; }
 .ap-leitura-erro .ap-leitura-icone { background: #fdecec; color: #a61b1b; }
 .ap-leitura-acoes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.ap-leitura-arquivos { display: block; margin-top: 2px; overflow-wrap: anywhere; }
 @media (max-width: 700px) { .ap-botoes-lancar { width: 100%; } .ap-botoes-lancar .btn { flex: 1 1 auto; } }
 
 /* popup de lançamento */

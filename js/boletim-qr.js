@@ -1,5 +1,6 @@
 /* Leitura do boletim de urna pelos QR Codes impressos nele, a partir de um PDF (ex.: o "imgbu.pdf" do TSE)
-   ou de uma foto. Segue o manual do TSE "QR Code no Boletim de Urna" (versão do formato 1.5, desde 2024):
+   ou de uma foto. O PDF "Via Digital" do site de resultados do TSE não tem QR Code: esse é lido pelo texto
+   (js/boletim-texto.js), conferido pelas somas do próprio boletim. Segue o manual do TSE "QR Code no Boletim de Urna" (versão do formato 1.5, desde 2024):
    - cada QR Code começa com "QRBU:i:N VRQR:x VRCH:y" (parte i de N), traz um trecho do conteúdo e termina com
      "HASH:..." (e "ASSI:..." no último); um boletim de eleição geral pode ter até 4 QR Codes;
    - o conteúdo é uma lista "chave:valor" separada por espaço: cabeçalho (MUNI, ZONA, SECA, COMP...) e, por cargo,
@@ -7,7 +8,7 @@
    - HASH confere a leitura: na parte 1 é SHA-512 dos dados dela; nas seguintes, SHA-512 de tudo o que veio antes
      ("dados1 HASH:h1 dados2 HASH:h2 ...") mais um espaço e os dados da parte (fórmula conferida com os exemplos
      oficiais de 2024). Hash que não bate = leitura com erro, e o boletim não é usado.
-   Bibliotecas carregadas só quando a leitura é usada: pdf.js (PDF -> imagem) e, para o QR Code, o leitor do próprio
+   Bibliotecas carregadas só quando a leitura é usada: pdf.js (texto e imagem do PDF) e, para o QR Code, o leitor do próprio
    navegador (BarcodeDetector, quando existe), o ZXing em WebAssembly e, de reserva, o jsQR. */
 (function (global) {
   'use strict';
@@ -34,30 +35,50 @@
     return scripts[url];
   }
 
-  // ---------- imagens: PDF (cada página) ou foto ----------
-  async function paginasDoPdf(arquivo) {
+  // ---------- PDF: texto de cada página e imagem (para o QR Code) ----------
+  async function abrirPdf(arquivo) {
     await carregarScript(PDFJS);
     const pdfjs = global.pdfjsLib;
     pdfjs.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
-    const doc = await pdfjs.getDocument({ data: new Uint8Array(await arquivo.arrayBuffer()) }).promise;
-    const telas = [];
-    for (let i = 1; i <= doc.numPages; i++) {
-      const pagina = await doc.getPage(i);
-      const base = pagina.getViewport({ scale: 1 });
-      // ~2000 px de largura (o imgbu.pdf do TSE é A4), sem passar de ~16 milhões de pixels por página
-      const escala = Math.min(Math.max(1.5, Math.min(5, 2000 / base.width)), Math.sqrt(16e6 / (base.width * base.height)));
-      const vp = pagina.getViewport({ scale: escala });
-      const tela = document.createElement('canvas');
-      tela.width = Math.ceil(vp.width);
-      tela.height = Math.ceil(vp.height);
-      const c2d = tela.getContext('2d');
-      c2d.fillStyle = '#fff';
-      c2d.fillRect(0, 0, tela.width, tela.height);
-      await pagina.render({ canvasContext: c2d, viewport: vp }).promise;
-      telas.push(tela);
-    }
-    return telas;
+    return pdfjs.getDocument({ data: new Uint8Array(await arquivo.arrayBuffer()) }).promise;
   }
+
+  /** Texto da página, uma linha por altura (os pedaços de texto na mesma altura viram uma linha só). */
+  async function textoDaPagina(pagina) {
+    const itens = (await pagina.getTextContent()).items.filter((it) => typeof it.str === 'string' && it.str.trim());
+    itens.sort((a, b) => (b.transform[5] - a.transform[5]) || (a.transform[4] - b.transform[4]));
+    const linhas = [];
+    let y = null;
+    for (const it of itens) {
+      if (y === null || Math.abs(it.transform[5] - y) > Math.max(2, Math.abs(it.transform[3]) * 0.4)) { linhas.push([]); y = it.transform[5]; }
+      linhas[linhas.length - 1].push(it.str);
+    }
+    return linhas.map((l) => l.join(' ')).join('\n');
+  }
+
+  async function telaDaPagina(pagina) {
+    const base = pagina.getViewport({ scale: 1 });
+    // ~2000 px de largura (o imgbu.pdf do TSE é A4), sem passar de ~16 milhões de pixels por página
+    const escala = Math.min(Math.max(1.5, Math.min(5, 2000 / base.width)), Math.sqrt(16e6 / (base.width * base.height)));
+    const vp = pagina.getViewport({ scale: escala });
+    const tela = document.createElement('canvas');
+    tela.width = Math.ceil(vp.width);
+    tela.height = Math.ceil(vp.height);
+    const c2d = tela.getContext('2d');
+    c2d.fillStyle = '#fff';
+    c2d.fillRect(0, 0, tela.width, tela.height);
+    await pagina.render({ canvasContext: c2d, viewport: vp }).promise;
+    return tela;
+  }
+
+  /** Lê o boletim pelo texto (js/boletim-texto.js): { lido } se conferiu, { erro } se não, null se não é boletim. */
+  function lerTexto(texto) {
+    const T = global.BoletimTexto;
+    if (!T || !T.pareceBoletim(texto)) return null;
+    try { return { lido: T.ler(texto) }; } catch (e) { return { erro: e.message }; }
+  }
+
+  // ---------- foto ----------
 
   async function telaDaFoto(arquivo) {
     const url = URL.createObjectURL(arquivo);
@@ -226,9 +247,13 @@
     return qrJsqr(tela, achados);
   }
 
+  const soQr = (lista) => lista.filter((t) => /^QRBU:\d+:\d+ /.test(t));
+
   /**
-   * Lê os arquivos (PDF ou imagens) e devolve os QR Codes de boletim encontrados, por "unidade" (página ou foto),
-   * na ordem: [{ arquivo, unidade, textos: [...] }]. progresso(texto) é chamado a cada etapa.
+   * Lê os arquivos (PDF ou imagens) e devolve o que achou por "unidade" (página ou foto), na ordem:
+   * [{ arquivo, unidade, textos: [QR Codes], lido?, erroTexto? }]. No PDF, primeiro tenta o texto do boletim
+   * (o "Via Digital" do site do TSE não tem QR Code): página lida pelo texto traz `lido` e não é procurada por
+   * QR Code; as demais são convertidas em imagem e varridas. progresso(texto) é chamado a cada etapa.
    */
   async function lerArquivos(arquivos, progresso) {
     const unidades = [];
@@ -238,10 +263,29 @@
       const nome = arquivo.name || 'arquivo ' + n;
       if (progresso) progresso('Lendo ' + nome + ' (' + n + ' de ' + arquivos.length + ')…');
       const ehPdf = /pdf/i.test(arquivo.type) || /\.pdf$/i.test(nome);
-      const telas = ehPdf ? await paginasDoPdf(arquivo) : [await telaDaFoto(arquivo)];
-      for (let p = 0; p < telas.length; p++) {
-        const textos = (await qrDaTela(telas[p])).filter((t) => /^QRBU:\d+:\d+ /.test(t));
-        unidades.push({ arquivo: nome, unidade: ehPdf ? 'página ' + (p + 1) : 'foto', textos });
+      if (!ehPdf) {
+        unidades.push({ arquivo: nome, unidade: 'foto', textos: soQr(await qrDaTela(await telaDaFoto(arquivo))) });
+        continue;
+      }
+      const doc = await abrirPdf(arquivo);
+      const paginas = [];
+      for (let i = 1; i <= doc.numPages; i++) {
+        const pagina = await doc.getPage(i);
+        const texto = await textoDaPagina(pagina).catch(() => '');
+        paginas.push({ pagina, texto, leitura: lerTexto(texto) });
+      }
+      // boletim que continua de uma página para outra: tenta o texto do PDF inteiro
+      if (paginas.length > 1 && !paginas.some((p) => p.leitura && p.leitura.lido)) {
+        const r = lerTexto(paginas.map((p) => p.texto).join('\n'));
+        if (r && r.lido) { unidades.push({ arquivo: nome, unidade: '', textos: [], lido: r.lido }); continue; }
+      }
+      for (let p = 0; p < paginas.length; p++) {
+        const unidade = paginas.length > 1 ? 'página ' + (p + 1) : '';
+        const r = paginas[p].leitura;
+        if (r && r.lido) { unidades.push({ arquivo: nome, unidade, textos: [], lido: r.lido }); continue; }
+        const u = { arquivo: nome, unidade: unidade || 'página 1', textos: soQr(await qrDaTela(await telaDaPagina(paginas[p].pagina))) };
+        if (r && r.erro) u.erroTexto = r.erro;
+        unidades.push(u);
       }
     }
     return unidades;
@@ -278,6 +322,15 @@
     const partes = partesDe(unidades);
     const usadas = new Set();
     const boletins = [];
+    // boletins lidos pelo texto (PDF do site do TSE): o mesmo boletim em dois arquivos vira um item só
+    for (const u of unidades) {
+      if (!u.lido) continue;
+      const onde = u.arquivo + (u.unidade ? ', ' + u.unidade : '');
+      const chave = JSON.stringify([u.lido.cab, u.lido.cargos]);
+      const igual = boletins.find((b) => b.chave === chave);
+      if (igual) { if (!igual.origem.includes(onde)) igual.origem.push(onde); continue; }
+      boletins.push({ n: 0, partes: [], origem: [onde], lido: u.lido, chave });
+    }
     const anotar = (b, p) => { b.partes[p.i - 1] = p; usadas.add(p); if (!b.origem.includes(p.onde)) b.origem.push(p.onde); };
     for (const p1 of partes.filter((p) => p.i === 1)) {
       const b = { n: p1.n, partes: new Array(p1.n).fill(null), origem: [] };

@@ -621,7 +621,7 @@
         if (pode) acoes = botao('lancar', s, 'Lançar', ' btn-primario') + (s.extra ? botao('remover-secao', s, 'Remover') : botao('sem-urna', s, 'Sem urna'));
       }
       const quem = s.reg && s.situacao === 'apurada'
-        ? '<small class="dica">' + (d.origem === 'qrcode' ? 'lida do QR Code às ' : 'lançada às ') + esc(hora(s.reg.atualizado_em)) + (pode && s.reg.atualizado_por ? ' por ' + esc(s.reg.atualizado_por) : '') + '</small>' : '';
+        ? '<small class="dica">' + (d.origem === 'qrcode' ? 'lida do QR Code às ' : d.origem === 'pdf' ? 'lida do PDF às ' : 'lançada às ') + esc(hora(s.reg.atualizado_em)) + (pode && s.reg.atualizado_por ? ' por ' + esc(s.reg.atualizado_por) : '') + '</small>' : '';
       const votos = s.situacao === 'apurada'
         ? '<div class="ap-secao-votos"><span>' + fmtInt(d.comparecimento) + ' votos</span>' + cfg.candidatos.map((c) => {
           const val = validos(d, chaveCargo(c.cargo));
@@ -961,7 +961,7 @@
     const s = procurarSecao(m.cd, secao);
     const dados = {
       situacao: 'apurada', zona: cab.ZONA || (s ? s.zona : ''), bairro: s ? s.bairro : '', local: s ? s.local : '',
-      comparecimento: comp, votos: {}, brancos: {}, nulos: {}, obs: '', origem: 'qrcode',
+      comparecimento: comp, votos: {}, brancos: {}, nulos: {}, obs: '', origem: lido.leitura === 'texto' ? 'pdf' : 'qrcode',
     };
     for (const cargo of cfg.cargos) {
       const c = lido.cargos.find((x) => x.cargo === CODIGO_CARGO[cargo]);
@@ -982,9 +982,10 @@
 
   const rotuloItem = (it) => (it.secao ? 'Seção ' + it.secao + ' · ' + nomeMun(it.cd) + (it.s ? ' · ' + titulo(it.s.bairro) : '') : (it.origem || []).join(', ') || 'Arquivo');
 
-  /** Avalia um boletim montado: confere o HASH, interpreta e salva quando der (ou diz por que não salvou). */
+  /** Avalia um boletim montado: confere o HASH (ou, no PDF lido pelo texto, usa o que já foi conferido pelas somas), interpreta e salva quando der (ou diz por que não salvou). */
   async function avaliarBoletim(b) {
     const it = { boletim: b, origem: b.origem };
+    if (b.lido) return avaliarLido(it, b.lido);
     const faltam = b.partes.map((p, i) => (p ? 0 : i + 1)).filter(Boolean);
     if (faltam.length) {
       const lidos = b.partes.map((p, i) => (p ? i + 1 : 0)).filter(Boolean);
@@ -995,6 +996,10 @@
     }
     let lido;
     try { lido = global.BoletimQR.interpretar(await global.BoletimQR.conferir(b)); } catch (e) { return Object.assign(it, { tipo: 'erro', texto: e.message + '. Tente uma foto mais nítida, de frente.' }); }
+    return avaliarLido(it, lido);
+  }
+
+  async function avaliarLido(it, lido) {
     const r = registroDoBoletim(lido);
     if (r.erro) return Object.assign(it, { tipo: 'erro', secao: normSecao(lido.cab.SECA), texto: r.erro });
     Object.assign(it, { cd: r.cd, secao: r.secao, s: r.s, dados: r.dados });
@@ -1007,11 +1012,12 @@
     const reg = it.s && it.s.reg;
     if (reg && reg.dados.situacao === 'apurada' && !forcar) {
       if (mesmosNumeros(reg.dados, it.dados)) return Object.assign(it, { tipo: 'igual', texto: 'já estava lançada com os mesmos números.' });
-      return Object.assign(it, { tipo: 'conflito', texto: 'já tinha boletim lançado' + (reg.dados.origem === 'qrcode' ? ' (do QR Code)' : ' à mão') + ' com números diferentes.' });
+      return Object.assign(it, { tipo: 'conflito', texto: 'já tinha boletim lançado' + (reg.dados.origem === 'qrcode' ? ' (do QR Code)' : reg.dados.origem === 'pdf' ? ' (do PDF)' : ' à mão') + ' com números diferentes.' });
     }
     try {
       await gravar({ id: idDe(it.cd, it.secao), cd_mun: it.cd, secao: it.secao, dados: it.dados });
-      return Object.assign(it, { tipo: 'salvo', texto: 'salva: ' + fmtInt(it.dados.comparecimento) + ' votos, ' + it.boletim.n + ' QR Code' + (it.boletim.n > 1 ? 's' : '') + ' conferido' + (it.boletim.n > 1 ? 's' : '') + '.' });
+      const conferido = it.boletim.lido ? 'somas do boletim conferidas' : it.boletim.n + ' QR Code' + (it.boletim.n > 1 ? 's' : '') + ' conferido' + (it.boletim.n > 1 ? 's' : '');
+      return Object.assign(it, { tipo: 'salvo', texto: 'salva: ' + fmtInt(it.dados.comparecimento) + ' votos, ' + conferido + '.' });
     } catch (e) {
       return Object.assign(it, { tipo: 'erro', texto: 'não foi possível salvar: ' + e.message });
     }
@@ -1042,10 +1048,14 @@
         ui.leitura.itens[alvo] = await avaliarBoletim(b);
       } else {
         const boletins = await global.BoletimQR.montar(unidades);
-        // arquivo sem nenhum QR Code de boletim (num PDF, página sem QR é normal: o QR fica no fim do boletim)
+        // arquivo sem boletim (nem texto de boletim, nem QR Code; num PDF, página sem QR é normal: o QR fica no fim do boletim)
         for (const nome of Array.from(new Set(unidades.map((u) => u.arquivo)))) {
-          if (!unidades.some((u) => u.arquivo === nome && u.textos.length)) {
-            ui.leitura.itens.push({ tipo: 'erro', origem: [nome], texto: 'nenhum QR Code de boletim encontrado. Se for foto, tire de frente, com boa luz e os QR Codes inteiros.' });
+          const doArquivo = unidades.filter((u) => u.arquivo === nome);
+          if (!doArquivo.some((u) => u.textos.length || u.lido)) {
+            const erroTexto = (doArquivo.find((u) => u.erroTexto) || {}).erroTexto;
+            ui.leitura.itens.push({ tipo: 'erro', origem: [nome], texto: erroTexto
+              ? 'o texto do boletim não confere (' + erroTexto + '). Nada foi salvo; confira o arquivo ou lance pelo formulário.'
+              : 'nenhum boletim encontrado. Se for foto, tire de frente, com boa luz e os QR Codes inteiros.' });
           }
         }
         for (const b of boletins) ui.leitura.itens.push(await avaliarBoletim(b));
@@ -1063,23 +1073,30 @@
     if (caixa) caixa.textContent = ui.leitura.lendo;
   }
 
+  /** De que arquivo(s) veio o boletim (quando o rótulo já é a seção); o mesmo boletim em vários arquivos aparece uma vez. */
+  function arquivosDoItem(it) {
+    const lista = (it.origem || []).filter(Boolean);
+    if (!it.secao || !lista.length) return '';
+    return '<small class="dica ap-leitura-arquivos">' + (lista.length > 1 ? 'Mesmo boletim em ' + lista.length + ' arquivos: ' : 'Arquivo: ') + esc(lista.join(', ')) + '</small>';
+  }
+
   function htmlLeitura() {
     const L = ui.leitura || { itens: [] };
     const icone = { salvo: '✓', igual: '✓', faltam: '…', conflito: '!', aviso: '!', formulario: '✎', erro: '✕' };
     const itens = L.itens.map((it, i) => {
       const botoes = [];
       if (it.tipo === 'faltam') botoes.push('<button type="button" class="btn btn-mini btn-primario" data-ap="completar-bu" data-idx="' + i + '">Adicionar foto/PDF</button>');
-      if (it.tipo === 'conflito') botoes.push('<button type="button" class="btn btn-mini btn-primario" data-ap="salvar-bu" data-idx="' + i + '">Substituir pelo do QR Code</button>');
+      if (it.tipo === 'conflito') botoes.push('<button type="button" class="btn btn-mini btn-primario" data-ap="salvar-bu" data-idx="' + i + '">Substituir pelo ' + (it.boletim && it.boletim.lido ? 'do PDF' : 'do QR Code') + '</button>');
       if (it.tipo === 'aviso') botoes.push('<button type="button" class="btn btn-mini" data-ap="salvar-bu" data-idx="' + i + '">Salvar mesmo assim</button>');
       if (it.dados && it.tipo !== 'salvo' && it.tipo !== 'igual') botoes.push('<button type="button" class="btn btn-mini" data-ap="form-bu" data-idx="' + i + '">Abrir no formulário</button>');
       return '<li class="ap-leitura-item ap-leitura-' + it.tipo + '"><span class="ap-leitura-icone" aria-hidden="true">' + (icone[it.tipo] || '•') + '</span>' +
-        '<div><strong>' + esc(rotuloItem(it)) + '</strong> <span>' + esc(it.texto) + '</span>' + (botoes.length ? '<div class="ap-leitura-acoes">' + botoes.join('') + '</div>' : '') + '</div></li>';
+        '<div><strong>' + esc(rotuloItem(it)) + '</strong> <span>' + esc(it.texto) + '</span>' + arquivosDoItem(it) + (botoes.length ? '<div class="ap-leitura-acoes">' + botoes.join('') + '</div>' : '') + '</div></li>';
     }).join('');
     const salvos = L.itens.filter((it) => it.tipo === 'salvo').length;
     return '<div class="la-modal-fundo" data-ap="fundo"><div class="la-modal ap-modal" role="dialog" aria-modal="true" aria-labelledby="ap-leitura-titulo">' +
       '<button type="button" class="la-modal-fechar" data-ap="fechar" aria-label="Fechar">×</button>' +
       '<h2 id="ap-leitura-titulo" class="ap-modal-titulo">Ler boletim de urna</h2>' +
-      '<p class="dica">Escolha o PDF do boletim (o do site do TSE serve) ou fotos dos QR Codes impressos nele. O site lê os QR Codes, confere o código de segurança de cada um e salva sozinho; se a leitura não conferir, nada é salvo.</p>' +
+      '<p class="dica">Escolha o PDF do boletim baixado do site do TSE (pode ser vários de uma vez) ou fotos dos QR Codes impressos nele. No PDF, o site lê o texto do boletim e confere as somas de cada cargo; na foto, lê os QR Codes e confere o código de segurança de cada um. Se tudo conferir, salva sozinho; se não, nada é salvo.</p>' +
       '<div class="ap-leitura-progresso dica" aria-live="polite">' + esc(L.lendo || (L.itens.length ? salvos + ' boletim(ns) salvo(s) nesta leitura.' : '')) + '</div>' +
       (itens ? '<ul class="ap-leitura-lista">' + itens + '</ul>' : '') +
       '<div class="ap-form-acoes"><button type="button" class="btn btn-primario" data-ap="ler-bu"' + (L.lendo ? ' disabled' : '') + '>Ler outros arquivos</button>' +
