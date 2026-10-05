@@ -1,0 +1,104 @@
+Boletins de urna 2026 (CE) — https://resultados.tse.jus.br/oficial, até 50 req/s
+  pleito 452 ciclo ele2024 619 tp3 t1 Eleição Ordinária Municipal - 2024 - 06/10/2024 1º Turno | 635 tp7 t1 Consulta Popular - São Luís | 636 tp7 t1 Consulta Popular - Governador Edison Lobão | 634 tp7 t1 Consulta Popular - Belo Horizonte | 633 tp7 t1 Consulta Popular - São Luiz | 637 tp7 t1 Consulta Popular - Dois Lajeados
+  pleito 453 ciclo ele2024 620 tp3 t2 Eleição Ordinária Municipal - 2024 - 27/10/2024 2º Turno
+  pleito 467 ciclo ele2024 638 tp4 t1 Eleição Suplementar - Castelândia
+  pleito 3040 ciclo ele2024 6041 tp4 t1 Eleição Suplementar - Neves Paulista | 6042 tp4 t1 Eleição Suplementar - Eldorado
+  pleito 3060 ciclo ele2024 6081 tp4 t1 Eleição Suplementar - Ruy Barbosa
+  pleito 3080 ciclo ele2024 6120 tp4 t1 Eleição Suplementar - Paranhos
+  pleito 3100 ciclo ele2024 6140 tp4 t1 Eleição Suplementar - Goiana
+  pleito 3120 ciclo ele2024 6160 tp4 t1 Eleição Suplementar - Panorama
+  pleito 3140 ciclo ele2024 6180 tp4 t1 Eleição Suplementar - Mongaguá
+  pleito 3160 ciclo ele2024 6161 tp4 t1 Eleição Suplementar - Bocaina
+  pleito 3203 ciclo ele2024 6235 tp4 t1 Eleição Suplementar - Bandeirantes
+  pleito 3180 ciclo ele2024 6200 tp4 t1 Eleição Suplementar - Guapé
+  pleito 3201 ciclo ele2024 6231 tp4 t1 Eleição Suplementar - Tucuruí
+  pleito 3204 ciclo ele2024 6236 tp4 t1 Eleição Suplementar - Guatapará
+  pleito 3205 ciclo ele2024 6237 tp4 t1 Eleição Suplementar - São José Da Varginha
+  pleito 3206 ciclo ele2024 6238 tp4 t1 Eleição Suplementar - Sales Oliveira
+  pleito 3207 ciclo ele2024 6239 tp4 t1 Eleição Suplementar - Muaná
+  pleito 3208 ciclo ele2024 6240 tp4 t1 Eleição Suplementar - Três Rios
+  pleito 3209 ciclo ele2024 6241 tp4 t1 Eleição Suplementar - São Tomé
+  pleito 3210 ciclo ele2024 6242 tp4 t1 Eleição Suplementar - São João
+  pleito 3211 ciclo ele2024 6243 tp4 t1 Eleição Suplementar - Cruzeiro Do Iguaçu
+  pleito 3212 ciclo ele2024 6244 tp4 t1 Eleição Suplementar - Santa Quitéria
+  pleito 3215 ciclo ele2024 6247 tp4 t1 Eleição Suplementar - Braga
+  pleito 3217 ciclo ele2024 6249 tp4 t1 Eleição Suplementar - Guará
+  pleito 3216 ciclo ele2024 6248 tp4 t1 Eleição Suplementar - Martins Soares
+  pleito 3222 ciclo ele2024 6262 tp4 t1 Eleição Suplementar - Choró
+  pleito 3223 ciclo ele2024 6263 tp4 t1 Eleição Suplementar - Senador Sá
+  pleito 3224 ciclo ele2024 6264 tp4 t1 Eleição Suplementar - Potiretama
+  pleito 3228 ciclo ele2024 6268 tp4 t1 Eleição Suplementar - Cachoeirinha
+  pleito 3226 ciclo ele2024 6266 tp4 t1 Eleição Suplementar - Oiapoque
+  pleito 3225 ciclo ele2024 6265 tp4 t1 Eleição Suplementar - Cabedelo
+  pleito 3232 ciclo ele2024 6272 tp4 t1 Eleição Suplementar - Brejo Alegre
+  pleito 3229 ciclo ele2024 6269 tp4 t1 Eleição Suplementar - Melgaço
+  pleito 3230 ciclo ele2024 6270 tp4 t1 Eleição Suplementar - Itaú
+  pleito 3231 ciclo ele2024 6271 tp4 t1 Eleição Suplementar - Ouro Branco
+  pleito 3237 ciclo ele2024 6278 tp2 t1 Eleição Suplementar - Roraima
+  pleito 3239 ciclo ele2024 6280 tp4 t1 Eleição Suplementar - Reginópolis
+  pleito 3240 ciclo ele2024 6281 tp4 t1 Eleição Suplementar - Tuiuti
+  pleito 3234 ciclo ele2024 6275 tp4 t1 Eleição Suplementar - Bonito De Minas
+  pleito 3235 ciclo ele2024 6276 tp4 t1 Eleição Suplementar - Amparo Do Serra
+  pleito 3236 ciclo ele2024 6277 tp4 t1 Eleição Suplementar - Joviânia
+  pleito 3220 ciclo ele2026 6257 tp8 t1 Eleição Ordinária Federal - 2026 1º Turno | 6259 tp1 t1 Eleição Ordinária Estadual - 2026 1º Turno | 6261 tp3 t1 Eleição Ordinária Municipal - 2026 - 04/10/2026 1º Turno
+Catálogo: ciclo ele2026 pleito 3220 eleição estadual 6259 federal 6257
+  formato: município ["cd","nm","zon"] zona ["cd","sec"] seção {"ns":"0161","da":"04/10/2026","ha":"23:11:25"}
+Seções da UF: 184 municípios, 25650 seções
+  locais de votação do TSE: 25650 seções
+  situação Governador: 8 candidatos
+  situação Senador: 8 candidatos
+  situação Deputado Federal: 265 candidatos
+  situação Deputado Estadual: 351 candidatos
+  situação Presidente: 0 candidatos
+    (formato: {"n":"22","sqcand":"280002551544","nm":"FLAVIO NANTES BOLSONARO","nmu":"FLAVIO BOLSONARO","dt":"30/04/1981","dvt":"Válido","seq":"1","e":"n","st":"","vap":"56104503","pvap":"47,03","pvapn":"47,027772356","vs":[{"tp":"v","sqcand":"280002551543","nm":"ALFREDO GASPAR DE MENDONÇA NETO","nmu":"ALFREDO GA)
+Baixando 23765 boletins (48 em paralelo)...
+  500/23765 seções · lidas 500 · sem boletim 0 · com erro 0 · 28 s · HTTP {"200":1032}
+  1000/23765 seções · lidas 1000 · sem boletim 0 · com erro 0 · 48 s · HTTP {"200":2027}
+  1500/23765 seções · lidas 1500 · sem boletim 0 · com erro 0 · 68 s · HTTP {"200":3032}
+  2000/23765 seções · lidas 2000 · sem boletim 0 · com erro 0 · 88 s · HTTP {"200":4027}
+  2500/23765 seções · lidas 2500 · sem boletim 0 · com erro 0 · 108 s · HTTP {"200":5026}
+  3000/23765 seções · lidas 3000 · sem boletim 0 · com erro 0 · 128 s · HTTP {"200":6030}
+  3500/23765 seções · lidas 3500 · sem boletim 0 · com erro 0 · 148 s · HTTP {"200":7029}
+  4000/23765 seções · lidas 4000 · sem boletim 0 · com erro 0 · 168 s · HTTP {"200":8028}
+  4500/23765 seções · lidas 4500 · sem boletim 0 · com erro 0 · 188 s · HTTP {"200":9037}
+  5000/23765 seções · lidas 5000 · sem boletim 0 · com erro 0 · 208 s · HTTP {"200":10030}
+  5500/23765 seções · lidas 5500 · sem boletim 0 · com erro 0 · 228 s · HTTP {"200":11029}
+  6000/23765 seções · lidas 6000 · sem boletim 0 · com erro 0 · 248 s · HTTP {"200":12029}
+  6500/23765 seções · lidas 6500 · sem boletim 0 · com erro 0 · 268 s · HTTP {"200":13026}
+  7000/23765 seções · lidas 7000 · sem boletim 0 · com erro 0 · 288 s · HTTP {"200":14033}
+  7500/23765 seções · lidas 7500 · sem boletim 0 · com erro 0 · 308 s · HTTP {"200":15027}
+  8000/23765 seções · lidas 8000 · sem boletim 0 · com erro 0 · 328 s · HTTP {"200":16029}
+  8500/23765 seções · lidas 8500 · sem boletim 0 · com erro 0 · 348 s · HTTP {"200":17030}
+  9000/23765 seções · lidas 9000 · sem boletim 0 · com erro 0 · 368 s · HTTP {"200":18025}
+  9500/23765 seções · lidas 9500 · sem boletim 0 · com erro 0 · 388 s · HTTP {"200":19037}
+  10000/23765 seções · lidas 10000 · sem boletim 0 · com erro 0 · 408 s · HTTP {"200":20027}
+  10500/23765 seções · lidas 10500 · sem boletim 0 · com erro 0 · 428 s · HTTP {"200":21035}
+  11000/23765 seções · lidas 11000 · sem boletim 0 · com erro 0 · 448 s · HTTP {"200":22029}
+  11500/23765 seções · lidas 11500 · sem boletim 0 · com erro 0 · 468 s · HTTP {"200":23029}
+  12000/23765 seções · lidas 12000 · sem boletim 0 · com erro 0 · 488 s · HTTP {"200":24029}
+  12500/23765 seções · lidas 12500 · sem boletim 0 · com erro 0 · 508 s · HTTP {"200":25031}
+  13000/23765 seções · lidas 13000 · sem boletim 0 · com erro 0 · 528 s · HTTP {"200":26028}
+  13500/23765 seções · lidas 13500 · sem boletim 0 · com erro 0 · 548 s · HTTP {"200":27038}
+  14000/23765 seções · lidas 14000 · sem boletim 0 · com erro 0 · 568 s · HTTP {"200":28026}
+  14500/23765 seções · lidas 14500 · sem boletim 0 · com erro 0 · 588 s · HTTP {"200":29030}
+  15000/23765 seções · lidas 15000 · sem boletim 0 · com erro 0 · 608 s · HTTP {"200":30034}
+  15500/23765 seções · lidas 15500 · sem boletim 0 · com erro 0 · 628 s · HTTP {"200":31027}
+  16000/23765 seções · lidas 16000 · sem boletim 0 · com erro 0 · 648 s · HTTP {"200":32032}
+  16500/23765 seções · lidas 16500 · sem boletim 0 · com erro 0 · 668 s · HTTP {"200":33026}
+  17000/23765 seções · lidas 17000 · sem boletim 0 · com erro 0 · 688 s · HTTP {"200":34036}
+  17500/23765 seções · lidas 17500 · sem boletim 0 · com erro 0 · 708 s · HTTP {"200":35025}
+  18000/23765 seções · lidas 18000 · sem boletim 0 · com erro 0 · 728 s · HTTP {"200":36032}
+  18500/23765 seções · lidas 18500 · sem boletim 0 · com erro 0 · 748 s · HTTP {"200":37027}
+  19000/23765 seções · lidas 19000 · sem boletim 0 · com erro 0 · 768 s · HTTP {"200":38033}
+  19500/23765 seções · lidas 19500 · sem boletim 0 · com erro 0 · 788 s · HTTP {"200":39025}
+  20000/23765 seções · lidas 20000 · sem boletim 0 · com erro 0 · 808 s · HTTP {"200":40031}
+  20500/23765 seções · lidas 20500 · sem boletim 0 · com erro 0 · 828 s · HTTP {"200":41032}
+  21000/23765 seções · lidas 21000 · sem boletim 0 · com erro 0 · 848 s · HTTP {"200":42031}
+  21500/23765 seções · lidas 21500 · sem boletim 0 · com erro 0 · 868 s · HTTP {"200":43029}
+  22000/23765 seções · lidas 22000 · sem boletim 0 · com erro 0 · 888 s · HTTP {"200":44023}
+  22500/23765 seções · lidas 22500 · sem boletim 0 · com erro 0 · 908 s · HTTP {"200":45032}
+  23000/23765 seções · lidas 23000 · sem boletim 0 · com erro 0 · 928 s · HTTP {"200":46032}
+  23500/23765 seções · lidas 23500 · sem boletim 0 · com erro 0 · 948 s · HTTP {"200":47028}
+  23765/23765 seções · lidas 23765 · sem boletim 0 · com erro 0 · 958 s · HTTP {"200":47537}
+Conferência com o resultado oficial do TSE (votos por candidato no estado): 632 iguais, 0 diferentes.
+Concluído em 962 s: 23765 de 23765 boletins lidos em 184 municípios; sem boletim 0; com erro 0.
