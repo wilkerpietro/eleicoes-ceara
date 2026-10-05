@@ -221,10 +221,15 @@
       });
     }
 
+    // o número da seção se repete entre zonas (Fortaleza, Caucaia, Juazeiro...): nesses municípios a seção é
+    // identificada por zona + número ("109-152"); nos de zona única, só pelo número, como sempre foi
+    const multiZona = new Set(secoesCsv.map((s) => String(+s.zona)).concat(votosCsv.map((v) => String(+v.zona)))).size > 1;
+    const chaveSecao = (zona, secao) => (multiZona ? (+zona) + '-' + (+secao) : String(secao));
     const secoes = new Map();
     for (const s of secoesCsv) {
-      secoes.set(s.secao, {
-        secao: s.secao, zona: s.zona, cod_local: s.cod_local, local: s.local, endereco: s.endereco,
+      const chave = chaveSecao(s.zona, s.secao);
+      secoes.set(chave, {
+        chave, secao: s.secao, zona: s.zona, cod_local: s.cod_local, local: s.local, endereco: s.endereco,
         bairro: s.bairro || '', cep: s.cep, aptos: parseInt(s.aptos, 10) || 0, agregadas: s.agregadas || '',
       });
     }
@@ -236,7 +241,7 @@
     for (const v of votosCsv) {
       const cargo = cargosNomes[v.cargo] || v.cargo;
       const numero = v.numero;
-      const reg = { secao: v.secao, cargo, numero, votos: parseInt(v.votos, 10) || 0, coligacao: '' };
+      const reg = { secao: chaveSecao(v.zona, v.secao), cargo, numero, votos: parseInt(v.votos, 10) || 0, coligacao: '' };
       const cad = cadastro.get(cargo + '|' + numero);
       if (numero === '95') { reg.tipo = 'branco'; reg.nome = 'BRANCOS'; reg.partido = ''; }
       else if (numero === '96') { reg.tipo = 'nulo'; reg.nome = 'NULOS'; reg.partido = ''; }
@@ -247,7 +252,7 @@
         reg.partido = cad && cad.partido ? cad.partido : (v.partido || partidos[numero.slice(0, 2)] || numero.slice(0, 2));
       }
       if (!secoes.has(reg.secao)) {
-        secoes.set(reg.secao, { secao: reg.secao, zona: v.zona, cod_local: '', local: 'Local não informado', endereco: '', bairro: temBairros ? 'BAIRRO NÃO INFORMADO' : '', cep: '', aptos: 0, agregadas: '' });
+        secoes.set(reg.secao, { chave: reg.secao, secao: v.secao, zona: v.zona, cod_local: '', local: 'Local não informado', endereco: '', bairro: temBairros ? 'BAIRRO NÃO INFORMADO' : '', cep: '', aptos: 0, agregadas: '' });
       }
       votos.push(reg);
       cargosSet.add(cargo);
@@ -269,7 +274,7 @@
     const temAptos = Array.from(secoes.values()).some((s) => s.aptos > 0);
 
     selecionarGeo(mun.cd);
-    db = { cfg, mun, municipios, secoes, votos, cargos: ordenarCargos(Array.from(cargosSet)), candidatos, bairros, temBairros, temAptos };
+    db = { cfg, mun, municipios, secoes, votos, cargos: ordenarCargos(Array.from(cargosSet)), candidatos, bairros, temBairros, temAptos, multiZona };
     mapa.ajustado = false;
     if (!temBairros) { estado.bairro = ''; if (estado.por === 'bairro') estado.por = 'local'; }
     el.status.textContent = '';
@@ -282,8 +287,11 @@
     return estado.bairro ? lista.filter((s) => s.bairro === estado.bairro) : lista;
   }
 
+  /** "Seção 152", ou "Zona 3 · Seção 152" nos municípios com mais de uma zona. */
+  const rotuloSecao = (s) => (db && db.multiZona ? 'Zona ' + (+s.zona) + ' · ' : '') + 'Seção ' + s.secao;
+
   function chaveGrupo(s, por) {
-    if (por === 'secao') return s.secao;
+    if (por === 'secao') return s.chave;
     if (por === 'local') return s.cod_local + '|' + s.local;
     return s.bairro;
   }
@@ -305,12 +313,12 @@
   /** Votos do candidato selecionado agrupados por bairro / local / seção (dentro do escopo). */
   function distribuicaoCandidato(por) {
     const secoes = secoesNoEscopo();
-    const secaoSet = new Set(secoes.map((s) => s.secao));
+    const secaoSet = new Set(secoes.map((s) => s.chave));
     const grupos = new Map();
     for (const s of secoes) {
       const k = chaveGrupo(s, por);
       if (!grupos.has(k)) {
-        grupos.set(k, { chave: k, rotulo: por === 'secao' ? 'Seção ' + s.secao : por === 'local' ? s.local : s.bairro, votos: 0, validos: 0, aptos: 0, bairro: s.bairro, local: s.local, secao: s.secao, agregadas: s.agregadas });
+        grupos.set(k, { chave: k, rotulo: por === 'secao' ? rotuloSecao(s) : por === 'local' ? s.local : s.bairro, votos: 0, validos: 0, aptos: 0, bairro: s.bairro, local: s.local, secao: s.secao, agregadas: s.agregadas });
       }
       grupos.get(k).aptos += s.aptos;
     }
@@ -330,7 +338,7 @@
   /** Ranking dos candidatos do cargo no escopo (município ou bairro). */
   function rankingCandidatos() {
     const secoes = secoesNoEscopo();
-    const secaoSet = new Set(secoes.map((s) => s.secao));
+    const secaoSet = new Set(secoes.map((s) => s.chave));
     const votosCargo = db.votos.filter((v) => v.cargo === estado.cargo && secaoSet.has(v.secao));
     const porCand = new Map();
     const legendas = new Map();
