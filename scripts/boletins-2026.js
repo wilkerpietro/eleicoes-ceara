@@ -38,7 +38,7 @@ const UF = String(args.uf || 'ce').toLowerCase();
 const CICLO = args.ciclo || 'ele2026';
 const SAIDA = path.resolve(RAIZ, args.saida || 'data/2026-1');
 const POR_SEGUNDO = Math.max(1, Math.min(90, Number(args['por-segundo']) || 50));
-const PARALELO = Math.max(1, Number(args.paralelo) || 24);
+const PARALELO = Math.max(1, Number(args.paralelo) || 48);
 const FILTRO = new Set(String(args.municipios || '').split(/[,\s]+/).filter(Boolean).map((c) => c.padStart(5, '0')));
 const AMOSTRA = args.amostra ? path.resolve(RAIZ, args.amostra) : null;
 const LOCAIS = args.locais ? path.resolve(RAIZ, args.locais) : null;
@@ -276,6 +276,7 @@ async function situacoes(cat) {
       if (c.n != null && c.st) { mapa.set(cargo + '|' + c.n, String(c.st).toUpperCase()); n++; }
     }
     log('  situação', NOME_CARGO[cargo] + ':', n, 'candidatos');
+    if (!n) { const c0 = (((((r.dados.carg || [])[0] || {}).agr || [])[0] || {}).par || [])[0]; log('    (formato: ' + JSON.stringify(c0 && c0.cand ? c0.cand[0] : Object.keys(r.dados)).slice(0, 300) + ')'); }
   }
   return mapa;
 }
