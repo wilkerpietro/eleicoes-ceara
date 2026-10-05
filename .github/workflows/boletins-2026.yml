@@ -1,0 +1,65 @@
+# Baixa os boletins de urna das Eleições 2026 (1º turno) no Ceará, direto do site de resultados do TSE, e gera a
+# votação por seção no formato das pastas de 2022 e 2024 (data/2026-1/), com scripts/boletins-2026.js.
+# Roda na mão, pela aba Actions ("Run workflow"). O resultado vai para o ramo "dados-2026" (nunca direto no main),
+# para ser conferido antes de publicar. O log e amostras dos arquivos do TSE ficam em amostra-tse/ no mesmo ramo.
+# Roda no GitHub porque é de lá que os servidores do TSE são alcançados; nenhum segredo é necessário.
+
+name: Boletins 2026 (votos por seção)
+
+on:
+  workflow_dispatch:
+    inputs:
+      municipios:
+        description: "Códigos TSE dos municípios, separados por vírgula (vazio = todos os 184)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: boletins-2026
+  cancel-in-progress: false
+
+jobs:
+  baixar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Ferramentas (pdftotext, caso o boletim venha em PDF)
+        continue-on-error: true
+        run: sudo apt-get install -y -q poppler-utils > /dev/null
+
+      - name: Locais de votação (dados abertos do TSE, se já publicados)
+        continue-on-error: true
+        run: |
+          mkdir -p locais
+          URL=https://cdn.tse.jus.br/estatistica/sead/odsele/eleitorado_locais_votacao/eleitorado_local_votacao_2026.zip
+          if curl -fsSL --retry 3 --max-time 900 -o locais.zip "$URL"; then unzip -o -q locais.zip -d locais; rm -f locais.zip; fi
+          ls -la locais
+
+      - name: Baixar os boletins e montar data/2026-1
+        env:
+          MUNICIPIOS: ${{ inputs.municipios }}
+        run: node scripts/boletins-2026.js --municipios="$MUNICIPIOS" --locais=locais --amostra=amostra-tse
+
+      - name: Resumo
+        if: always()
+        run: |
+          { echo '```'; tail -n 80 amostra-tse/log.txt 2>/dev/null || echo "sem log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Gravar no ramo dados-2026
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B dados-2026
+          git add -A data/2026-1 amostra-tse
+          git commit -q -m "Dados 2026: votos por seção a partir dos boletins de urna do TSE" || echo "nada mudou"
+          git push -f origin dados-2026

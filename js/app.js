@@ -288,11 +288,17 @@
     return s.bairro;
   }
 
+  /** Quantos votos cada eleitor dá no cargo (Senador em 2026: 2 vagas, 2 votos). Em data/eleicoes.json, "votos_por_eleitor". */
+  function votosPorEleitor() {
+    return Number(((db && db.cfg && db.cfg.votos_por_eleitor) || {})[estado.cargo]) || 1;
+  }
+
   function totaisCargo(votosFiltrados) {
     const t = { nominal: 0, legenda: 0, branco: 0, nulo: 0 };
     for (const v of votosFiltrados) t[v.tipo] += v.votos;
     t.validos = t.nominal + t.legenda;
-    t.comparecimento = t.validos + t.branco + t.nulo;
+    t.totalVotos = t.validos + t.branco + t.nulo;
+    t.comparecimento = Math.round(t.totalVotos / votosPorEleitor());
     return t;
   }
 
@@ -364,7 +370,8 @@
     }
     for (const r of porBairro.values()) {
       r.validos = r.nominal + r.legenda;
-      r.comparecimento = r.validos + r.branco + r.nulo;
+      r.totalVotos = r.validos + r.branco + r.nulo;
+      r.comparecimento = Math.round(r.totalVotos / votosPorEleitor());
       r.ranking = Array.from(r.cands.values()).sort((a, b) => b.votos - a.votos || a.nome.localeCompare(b.nome, 'pt-BR'));
       r.ranking.forEach((c, i) => { c.posicao = i + 1; });
       r.posicaoCand = estado.cand ? (r.ranking.findIndex((c) => c.numero === estado.cand) + 1) || null : null;
@@ -670,9 +677,9 @@
       item('Eleitores aptos', semAptos ? 'não disponível nesta base' : fmtInt(r.aptos)),
       item('Comparecimento', fmtInt(t.comparecimento) + (semAptos ? '' : ' <small>(' + fmtPct(pct(t.comparecimento, r.aptos)) + ')</small>')),
       semAptos ? '' : item('Abstenção', fmtPct(pct(r.aptos - t.comparecimento, r.aptos))),
-      item('Válidos', fmtInt(t.validos) + ' <small>(nominais ' + fmtInt(t.nominal) + ' · legenda ' + fmtInt(t.legenda) + ')</small>'),
+      item('Válidos', fmtInt(t.validos) + ' <small>(nominais ' + fmtInt(t.nominal) + ' · legenda ' + fmtInt(t.legenda) + (votosPorEleitor() > 1 ? ' · cada eleitor vota ' + votosPorEleitor() + ' vezes neste cargo' : '') + ')</small>'),
       item('Brancos', fmtInt(t.branco)),
-      item('Nulos', fmtInt(t.nulo) + ' <small>(brancos e nulos: ' + fmtPct(pct(t.branco + t.nulo, t.comparecimento)) + ' do comparecimento)</small>'),
+      item('Nulos', fmtInt(t.nulo) + ' <small>(brancos e nulos: ' + fmtPct(pct(t.branco + t.nulo, t.totalVotos)) + (votosPorEleitor() > 1 ? ' dos votos' : ' do comparecimento') + ')</small>'),
       item('Seções', fmtInt(r.nSecoes)),
       db.cfg.data ? item('Votação em', db.cfg.data.split('-').reverse().join('/')) : '',
       o.acoes !== undefined ? o.acoes : (estado.bairro ? '<button type="button" class="link" data-acao="bairro" data-valor="">Ver todo o município</button>' : ''),

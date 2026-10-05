@@ -11,5 +11,11 @@
     "21": "PCB", "22": "PL", "23": "CIDADANIA", "25": "PRD", "27": "DC", "28": "PRTB", "29": "PCO", "30": "NOVO", "33": "PMN",
     "35": "PMB", "36": "AGIR", "40": "PSB", "43": "PV", "44": "UNIÃO", "45": "PSDB", "50": "PSOL", "55": "PSD",
     "65": "PC do B", "70": "AVANTE", "77": "SOLIDARIEDADE", "80": "UP", "90": "MOBILIZA"
+  },
+  "2026": {
+    "10": "REPUBLICANOS", "11": "PP", "12": "PDT", "13": "PT", "14": "MISSÃO", "15": "MDB", "16": "PSTU", "18": "REDE", "20": "PODE",
+    "21": "PCB", "22": "PL", "23": "CIDADANIA", "25": "PRD", "27": "DC", "28": "PRTB", "29": "PCO", "30": "NOVO", "33": "MOBILIZA",
+    "35": "DEMOCRATA", "40": "PSB", "43": "PV", "44": "UNIÃO", "45": "PSDB", "50": "PSOL", "55": "PSD", "65": "PCDOB", "70": "AVANTE",
+    "77": "SOLIDARIEDADE", "80": "UP"
   }
 }
