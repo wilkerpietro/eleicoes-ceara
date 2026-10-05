@@ -1,5 +1,5 @@
 {
- "gerado_em": "2026-10-05T15:18:56.414Z",
+ "gerado_em": "2026-10-05T15:36:51.748Z",
  "fonte": "https://resultados.tse.jus.br/oficial/ele2026/arquivo-urna/3220",
  "pleito": "3220",
  "eleicao_estadual": "6259",
@@ -7,9 +7,13 @@
  "municipios": 184,
  "secoes_com_boletim": 23765,
  "secoes_lidas": 23765,
+ "conferencia_oficial": {
+  "iguais": 632,
+  "diferentes": []
+ },
  "sem_boletim": [],
  "com_erro": [],
- "requisicoes": 47546,
+ "requisicoes": 47537,
  "http": {
   "200": 47537
  }
