@@ -1,5 +1,5 @@
 {
-  "_comentario": "Manifesto das eleições disponíveis. Cada eleição tem uma pasta com um subdiretório por município (código TSE) contendo secoes.csv, votos.csv e candidatos.csv, além de municipios.json e fotos/.",
+  "_comentario": "Manifesto das eleições disponíveis. Cada eleição tem uma pasta com um subdiretório por município (código TSE) contendo secoes.csv, votos.csv e candidatos.csv, além de municipios.json e fotos/. votos_por_eleitor: cargos em que cada eleitor vota mais de uma vez (Senador em 2026, com duas vagas), para o comparecimento sair certo.",
   "municipio_padrao": "15997",
   "candidatos2026": "data/2026-1/candidatos.csv",
   "fotos2026": "data/2026-1/fotos/",
@@ -28,6 +28,20 @@
       "municipios": "data/2024-1/municipios.json",
       "fotos": "data/2024-1/fotos/",
       "fonte": "TSE — Votação por seção (portal de resultados e dados abertos votacao_secao_2024_CE), cadastro consulta_cand_2024 e fotos oficiais; seções, bairros e aptos da lista de seções do TRE-CE"
+    },
+    {
+      "id": "2026-1",
+      "ano": 2026,
+      "turno": 1,
+      "nome": "Eleições Gerais 2026 · 1º turno",
+      "nome_curto": "Eleições 2026 (gerais)",
+      "data": "2026-10-04",
+      "pasta": "data/2026-1/",
+      "municipios": "data/2026-1/municipios.json",
+      "fotos": "data/2026-1/fotos/",
+      "agregado_estado": true,
+      "votos_por_eleitor": { "Senador": 2 },
+      "fonte": "TSE — boletins de urna de cada seção (site de resultados, arquivo-urna, gerado por scripts/boletins-2026.js), cadastro consulta_cand_2026 e fotos oficiais; locais e bairros do eleitorado por local de votação do TSE (2026) e, em Paraipaba e Paracuru, da lista de seções do TRE-CE"
     }
   ]
 }

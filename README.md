@@ -8,9 +8,10 @@ Site estático, sem dependências: HTML, CSS e JavaScript puro lendo os CSVs da 
 
 ## O que já funciona
 
-- Barra lateral com as **eleições** (2022 gerais, 2024 municipais) como itens de menu; os **cargos** da eleição escolhida aparecem aninhados abaixo dela e podem ser recolhidos clicando de novo na eleição. Ao lado deles, no mesmo padrão, o item **Candidatos 2026**. Em seguida, o seletor de **município**. No celular a barra lateral fica escondida num botão "sanduíche" na barra do topo e abre como uma gaveta.
-- Opção **"Todos os municípios (Ceará)"** no seletor: agregado estadual em que cada município funciona como um "bairro" (ranking do estado, votos de um candidato por município, clique no município abre a página dele). Disponível nas eleições em que os candidatos são os mesmos no estado inteiro (2022); em 2024 a opção fica desabilitada, porque os números dos candidatos se repetem entre municípios. O agregado é gerado por `scripts/agregar-estado.sh data/2022-1` (pasta `data/2022-1/todos/`) e ligado pela chave `agregado_estado` em `data/eleicoes.json`.
+- Barra lateral com as **eleições** (2022 gerais, 2024 municipais, 2026 gerais) como itens de menu; os **cargos** da eleição escolhida aparecem aninhados abaixo dela e podem ser recolhidos clicando de novo na eleição. Ao lado deles, no mesmo padrão, o item **Candidatos 2026**. Em seguida, o seletor de **município**. No celular a barra lateral fica escondida num botão "sanduíche" na barra do topo e abre como uma gaveta.
+- Opção **"Todos os municípios (Ceará)"** no seletor: agregado estadual em que cada município funciona como um "bairro" (ranking do estado, votos de um candidato por município, clique no município abre a página dele). Disponível nas eleições em que os candidatos são os mesmos no estado inteiro (2022 e 2026); em 2024 a opção fica desabilitada, porque os números dos candidatos se repetem entre municípios. O agregado é gerado por `scripts/agregar-estado.sh data/2022-1` (pasta `data/2022-1/todos/`) e ligado pela chave `agregado_estado` em `data/eleicoes.json`.
 - Na tela Tabelas o ranking não tem cartões de resumo: eleitores aptos, comparecimento, abstenção, válidos, brancos, nulos e seções aparecem como uma linha discreta no rodapé da tabela.
+- Nos municípios com mais de uma zona eleitoral (Fortaleza, Caucaia, Juazeiro do Norte, Sobral...), o número da seção se repete entre zonas: a seção é identificada por zona + número, e a lista por seção mostra "Zona 3 · Seção 152".
 - Filtros por **cargo**, **candidato** e **bairro** (quando o município tem bairros cadastrados), com busca por nome, número ou partido.
 - **Modo ranking** (nenhum candidato selecionado): ranking dos candidatos do cargo no município ou em um bairro, com foto, cor do partido, votos e %, além de aptos, comparecimento, abstenção, válidos, brancos, nulos e votos de legenda.
 - **Modo candidato**: cartão em destaque com foto, nome, total de votos, nome completo, partido e número; abaixo, os votos agrupados por bairro, local de votação ou seção, com % dos votos válidos no grupo, % do total do candidato, válidos e aptos.
@@ -88,6 +89,8 @@ js/app.js                  carga dos dados, agregações e renderização
 js/apuracao.js             tela de apuração paralela 2026 (boletins de urna por seção)
 js/boletim-qr.js           leitura do boletim de urna pelos QR Codes (PDF ou foto), com conferência do HASH
 js/boletim-texto.js        leitura do boletim de urna pelo texto (PDF "Via Digital" do TSE e arquivo imgbu), com conferência das somas
+js/boletim-bu.js           leitura do arquivo binário do boletim de urna (-bu.dat, ASN.1) publicado pelo TSE por seção
+scripts/boletins-2026.js   votação por seção de 2026 a partir dos boletins de urna do TSE (roda no GitHub Actions)
 js/tse.js                  tela do resultado oficial do TSE por município (arquivos públicos de divulgação)
 scripts/serve.ps1          servidor HTTP de desenvolvimento (Windows)
 scripts/build-municipios.sh  converte o "votacao_secao" do TSE em uma pasta por município
@@ -153,6 +156,18 @@ bash scripts/build-municipios.sh 2022 v2022.csv data/2022-1 consulta_cand_2022_C
 
 O script também aceita o formato do arquivo "votação por seção" baixado do portal de resultados do TSE para 2024 (`votacao_secao-uf_*_2024_ce.csv`), que traz aptos e comparecimento por seção.
 
+### Eleições 2026 (votação por seção a partir dos boletins de urna)
+
+Os dados abertos do TSE com a votação por seção saem alguns dias depois da eleição. Para ter 2026 logo, `scripts/boletins-2026.js` (Node 18+) monta `data/2026-1/` direto dos boletins de urna que o TSE publica por seção no site de resultados (o mesmo arquivo do botão "Boletim de urna" de lá):
+
+1. catálogo `oficial/comum/config/ele-c.jws`: ciclo `ele2026`, pleito 3220, eleições 6259 (estadual) e 6257 (federal);
+2. lista de seções do Ceará `oficial/ele2026/arquivo-urna/3220/config/ce/ce-p003220-cs.json` (184 municípios, 25.650 seções);
+3. por seção, `.../dados/ce/<município>/<zona>/<seção>/p003220-ce-m<município>-z<zona>-s<seção>-aux.json`, que aponta o arquivo do boletim (`o03220ce...-bu.dat`). Esse arquivo é lido por `js/boletim-bu.js` (ASN.1/BER, conforme a especificação oficial `bu.asn1` do TSE) e os totais de cada cargo são conferidos. Em Paraipaba, os 77 boletins conferidos com os PDFs "Via Digital" do TSE bateram em todos os números.
+
+Nome, partido, foto e ocupação vêm de `data/2026-1/candidatos.csv`; a situação (eleito, 2º turno...) vem do resultado da UF no próprio site do TSE; local, endereço e bairro vêm do "eleitorado por local de votação" de 2026 (dados abertos) e, em Paraipaba e Paracuru, da lista do TRE-CE já usada na apuração paralela. O agregado estadual (`todos/`), `municipios.json` e um resumo (`situacao.json`, com as seções sem boletim) saem junto. No Senador de 2026 cada eleitor vota duas vezes (duas vagas); a chave `votos_por_eleitor` em `data/eleicoes.json` faz o comparecimento e a abstenção saírem certos.
+
+Como os servidores do TSE não respondem a todo lugar, o script roda no GitHub Actions (`.github/workflows/boletins-2026.yml`): pela aba **Actions** → "Boletins 2026 (votos por seção)" → **Run workflow** (campo opcional com códigos de municípios), ou enviando um commit para o ramo `rodar-boletins-2026` (municípios na mensagem, como `[municipios: 15997]`). O resultado vai para o ramo `dados-2026`, com o log e amostras dos arquivos do TSE em `amostra-tse/`; depois de conferido, é trazido para o `main`. Localmente: `node scripts/boletins-2026.js --municipios=15997 --locais=pasta_do_eleitorado`.
+
 ### Seções, bairros e aptos (TRE-CE)
 
 O TRE-CE publica a lista "Seções Eleitorais no Estado" (uma linha por seção, com local, endereço, bairro, CEP, aptos e seções agregadas). O script abaixo aplica essa lista às pastas geradas, preenchendo `secoes.csv` de todos os municípios:
@@ -183,6 +198,7 @@ powershell -ExecutionPolicy Bypass -File scripts/reduzir-fotos.ps1 -Pasta data/2
 - [x] Etapa 1: consulta por candidato com votos por bairro e seção (Paraipaba, Eleições 2022).
 - [x] Etapa 2: mapa interativo com a geolocalização de cada bairro (Leaflet).
 - [x] Etapa 3: todos os municípios do Ceará nas Eleições 2022 (todos os cargos) e 2024 (Prefeito e Vereador), com seções e bairros do TRE-CE, cadastro e fotos do TSE.
+- [x] Etapa 4: Eleições 2026 (1º turno, todos os cargos e municípios) a partir dos boletins de urna publicados pelo TSE.
 - [ ] Coordenadas de bairros para outros municípios (mapa).
 - [x] Publicado no GitHub Pages: https://wilkerpietro.github.io/eleicoes-ceara/ (repositório https://github.com/wilkerpietro/eleicoes-ceara).
 

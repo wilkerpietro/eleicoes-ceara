@@ -321,7 +321,8 @@
       lerCsv('data/2022-1/' + cd + '/candidatos.csv'),
       lerCsv('data/2024-1/' + cd + '/secoes.csv'),
     ]);
-    const bairroDaSecao = new Map(s24.map((s) => [s.secao, s.bairro || '']));
+    // seção identificada por zona + número (o número se repete entre zonas nos municípios maiores)
+    const bairroDaSecao = new Map(s24.map((s) => [(+s.zona) + '-' + (+s.secao), s.bairro || '']));
     const votos = new Map();
     const porBairro = new Map(); // cargo|numero -> Map(bairro -> votos)
     for (const v of v24) {
@@ -329,7 +330,7 @@
       const k = v.cargo + '|' + v.numero;
       votos.set(k, (votos.get(k) || 0) + n);
       if (v.cargo !== '13' && v.cargo !== '11') continue;
-      const b = bairroDaSecao.get(v.secao) || '';
+      const b = bairroDaSecao.get((+v.zona) + '-' + (+v.secao)) || '';
       if (!b) continue;
       if (!porBairro.has(k)) porBairro.set(k, new Map());
       const m = porBairro.get(k);
