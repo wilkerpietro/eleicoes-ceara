@@ -260,7 +260,8 @@ function locaisAnteriores(cd) {
   return { porSecao, porLocal };
 }
 
-// ---------- situação dos candidatos (eleito, 2º turno...) ----------
+// ---------- situação dos candidatos (eleito, 2º turno...) e votos oficiais da UF, para conferência ----------
+const oficiais = new Map(); // cargo|numero -> votos apurados no resultado oficial
 async function situacoes(cat) {
   const mapa = new Map();
   const dirDe = (ele, uf) => cat.dir.replace('<base>', HOST).replace('<ambiente>', AMBIENTE).replace('<ciclo>', cat.ciclo).replace('<cd_eleicao>', ele).replace('<uf>', uf).replace(/([^:])\/{2,}/g, '$1/');
@@ -273,7 +274,9 @@ async function situacoes(cat) {
     if (!r) { log('  situação', NOME_CARGO[cargo] + ': resultado da UF não encontrado (' + nome + ')'); continue; }
     let n = 0;
     for (const carg of r.dados.carg || []) for (const agr of carg.agr || []) for (const par of agr.par || []) for (const c of par.cand || []) {
-      if (c.n != null && c.st) { mapa.set(cargo + '|' + c.n, String(c.st).toUpperCase()); n++; }
+      if (c.n == null) continue;
+      if (c.vap != null && c.vap !== '') oficiais.set(cargo + '|' + c.n, Number(c.vap));
+      if (c.st) { mapa.set(cargo + '|' + c.n, String(c.st).toUpperCase()); n++; }
     }
     log('  situação', NOME_CARGO[cargo] + ':', n, 'candidatos');
     if (!n) { const c0 = (((((r.dados.carg || [])[0] || {}).agr || [])[0] || {}).par || [])[0]; log('    (formato: ' + JSON.stringify(c0 && c0.cand ? c0.cand[0] : Object.keys(r.dados)).slice(0, 300) + ')'); }
@@ -436,10 +439,26 @@ async function main() {
     log('Filtro de municípios: municipios.json atualizado; o agregado estadual (todos/) não foi alterado.');
   }
 
+  // conferência: soma dos boletins no estado x votos do resultado oficial da UF (só com todos os municípios)
+  let conferencia = null;
+  if (!FILTRO.size && oficiais.size) {
+    const somaUf = new Map();
+    for (const g of geral.values()) for (const [k, v] of g.soma) { const [cg, num] = k.split(';'); const kk = cg + '|' + num; somaUf.set(kk, (somaUf.get(kk) || 0) + v); }
+    conferencia = { iguais: 0, diferentes: [] };
+    for (const [k, oficial] of oficiais) {
+      const [cg] = k.split('|');
+      if (cg === '1') continue; // Presidente: o arquivo da UF "br" é nacional
+      const nosBoletins = somaUf.get(k) || 0;
+      if (nosBoletins === oficial) conferencia.iguais++; else conferencia.diferentes.push({ cargo: NOME_CARGO[cg], numero: k.split('|')[1], boletins: nosBoletins, oficial });
+    }
+    log('Conferência com o resultado oficial do TSE (votos por candidato no estado): ' + conferencia.iguais + ' iguais, ' + conferencia.diferentes.length + ' diferentes.');
+    for (const d of conferencia.diferentes.slice(0, 15)) log('  diferente: ' + d.cargo + ' ' + d.numero + ': boletins ' + d.boletins + ', oficial ' + d.oficial);
+  }
+
   const resumo = {
     gerado_em: new Date().toISOString(), fonte: base, pleito: cat.pleito, eleicao_estadual: cat.estadual, eleicao_federal: cat.federal,
     municipios: listaMun.length, secoes_com_boletim: fila.length, secoes_lidas: fila.length - faltando.length - falhas.length,
-    sem_boletim: faltando, com_erro: falhas, requisicoes: contagem.req, http: contagem.status,
+    conferencia_oficial: conferencia, sem_boletim: faltando, com_erro: falhas, requisicoes: contagem.req, http: contagem.status,
   };
   if (!FILTRO.size) fs.writeFileSync(path.join(SAIDA, 'situacao.json'), JSON.stringify(resumo, null, 1) + '\n');
   guardarAmostra('resumo.json', JSON.stringify(resumo, null, 1));
